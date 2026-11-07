@@ -5,6 +5,7 @@ import Cal.Model.Commodities
 import Cal.Prices (RateInfo (..), RateSource (..))
 import Cal.Types
 import Data.List (find)
+import Data.Maybe (isJust)
 import Test.Tasty.HUnit
 import Support
 
@@ -57,3 +58,13 @@ unit_unpriced :: Assertion
 unit_unpriced = do
   e <- (`commoditiesModel` defaultCursor) <$> envFor ["--commodities", "-p", "2026-10", "-f", edgePath]
   cmUnpriced e @?= 1
+
+unit_deltaMtnn :: Assertion
+unit_deltaMtnn = do
+  c <- cm
+  fmap (fmap (round . (* 1000)) . crDeltaPct) (row "MTNN" c) @?= Just (Just (37 :: Int))
+
+unit_deltaStale :: Assertion
+unit_deltaStale = do
+  c <- cm
+  (fmap crDeltaPct (row "Dh" c), fmap (isJust . crDeltaPct) (row "\8364" c)) @?= (Just Nothing, Just True)

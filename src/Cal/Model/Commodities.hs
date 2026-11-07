@@ -117,8 +117,9 @@ commoditiesModel env cursor = CommoditiesModel
             Just b | not isBase -> rateInfo prices c b heldAt
             _ -> Nothing
           prev = priceIn c (lastDay (prevSpan (sCommInterval s) span'))
-          delta = case (info, prev) of
-            (Just i, Just p) | p /= 0 -> Just (realToFrac (riRate i) / realToFrac p - 1)
+          stale = info >>= staleAge (sStaleDays s) staleAsOf
+          delta = case (info, stale, prev) of
+            (Just i, Nothing, Just p) | p /= 0 -> Just (realToFrac (riRate i) / realToFrac p - 1)
             _ -> Nothing
           val = base >>= \b -> valueOf b c h
           gain = case base of
@@ -132,7 +133,7 @@ commoditiesModel env cursor = CommoditiesModel
            , crChange = M.findWithDefault 0 c changed
            , crPrice = info, crDeltaPct = delta, crSpark = map snd (series c)
            , crValue = val, crShare = Nothing, crGain = gain
-           , crStale = info >>= staleAge (sStaleDays s) staleAsOf }
+           , crStale = stale }
     rows0 = map mkRow commodities
     total = case base of
       Just _ -> Just (sum (mapMaybe crValue rows0))
