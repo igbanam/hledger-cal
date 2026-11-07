@@ -28,3 +28,8 @@ unit_chartWidths = do
   let vs = [Just 1, Nothing, Just 5, Just 3]
   mapM_ (\g -> map T.length (lineChart g 7 3 vs) @?= [7, 7, 7]) [u, a]
 unit_chartEmpty = lineChart u 4 2 [] @?= ["    ", "    "]
+
+unit_dashApprox :: Assertion
+unit_dashApprox = do
+  (gDash u, gApprox u) @?= ("\8212", "\8776")
+  (gDash a, gApprox a) @?= ("-", "~")

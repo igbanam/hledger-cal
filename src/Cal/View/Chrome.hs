@@ -169,7 +169,7 @@ expensesCard ctx w prev k = card ctx w "EXPENSES" (Seg (bold (st RExp)) (fmtSign
 
 netCard :: RenderCtx -> Int -> Kpis -> Block
 netCard ctx w k = card ctx w "NET" (Seg (bold plain) (fmtSigned (rcFmt ctx) (kNet k)))
-  [sub ctx w (maybe "—" fmtPct (kKept k) <> " of income kept")]
+  [sub ctx w (maybe (gDash (rcGlyphs ctx)) fmtPct (kKept k) <> " of income kept")]
 
 fxCard :: RenderCtx -> Int -> Kpis -> Block
 fxCard ctx w k = card ctx w "FX EFFECT" value $
@@ -179,7 +179,7 @@ fxCard ctx w k = card ctx w "FX EFFECT" value $
   where
     f = rcFmt ctx
     value = case kFx k of
-      Nothing -> Seg (bold dim) "—"
+      Nothing -> Seg (bold dim) (gDash (rcGlyphs ctx))
       Just q -> Seg (bold (st (if q < 0 then RExp else if q > 0 then RInc else RText))) (fmtQty f q)
 
 activityCard :: RenderCtx -> Int -> Kpis -> Block

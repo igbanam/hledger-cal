@@ -20,7 +20,7 @@ data Glyphs = Glyphs
   { gFull :: !Char, gEighths :: ![Char], gSpark :: ![Char], gSparkMissing :: !Char
   , gChartPoint :: !(Maybe Char)
   , gLeft, gRight, gOverspent, gStale, gOpen, gSep, gMinus, gLegendBar
-  , gCursorMark, gArrow, gTimes :: !Text
+  , gCursorMark, gArrow, gTimes, gDash, gApprox :: !Text
   , gMixRank :: ![Char], gBox :: !BoxChars }
   deriving (Eq, Show)
 
@@ -30,7 +30,7 @@ glyphsFor GlyphsUtf8 = Glyphs
   , gChartPoint = Nothing
   , gLeft = "◀", gRight = "▶", gOverspent = "▲", gStale = "•", gOpen = "…"
   , gSep = " · ", gMinus = "−", gLegendBar = "━", gCursorMark = "▢"
-  , gArrow = "→", gTimes = "×"
+  , gArrow = "→", gTimes = "×", gDash = "—", gApprox = "≈"
   , gMixRank = "████"
   , gBox = BoxChars '─' '│' '┌' '┐' '└' '┘' '├' '┤' '┬' '┴' '┼' }
 glyphsFor GlyphsAscii = Glyphs
@@ -38,7 +38,7 @@ glyphsFor GlyphsAscii = Glyphs
   , gChartPoint = Just '*'
   , gLeft = "<", gRight = ">", gOverspent = "^", gStale = "*", gOpen = "..."
   , gSep = " . ", gMinus = "-", gLegendBar = "-", gCursorMark = "[]"
-  , gArrow = "->", gTimes = "x"
+  , gArrow = "->", gTimes = "x", gDash = "-", gApprox = "~"
   , gMixRank = "#=-."
   , gBox = BoxChars '-' '|' '+' '+' '+' '+' '+' '+' '+' '+' '+' }
 

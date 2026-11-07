@@ -110,7 +110,7 @@ yearDoc ctx m = ViewDoc
       , Seg (bold plain) (fmtSigned f (qgNet q)), Seg plain "  " ] ++
       case qgStatus q of
         Open -> [Seg dim ("open" <> gSep g <> "to " <> fmtDayMon today)]
-        _ -> [Seg dim (maybe "—" fmtPct (qgSpent q) <> " spent")]
+        _ -> [Seg dim (maybe (gDash g) fmtPct (qgSpent q) <> " spent")]
 
     rowBlock r
       | mrStatus r == Future && not (mrHasPostings r) = futureRow r
@@ -140,11 +140,11 @@ yearDoc ctx m = ViewDoc
       ++ [spaces 2, fig figW plain (fmtAbs f (mrExpenses r))]
     futureRow r = line $
       [spaces 2] ++ nameSegs r ++ symSegs r
-      ++ [Seg dim "—  no postings yet"]
+      ++ [Seg dim (gDash g <> "  no postings yet")]
       ++ maybe [] (\h -> [Seg dim ("  " <> truncEnd g room (hintText h))]) (mrHint r)
-      where room = rcWidth ctx - (2 + nameW + symW + textW ("—  no postings yet" :: Text) + 2)
+      where room = rcWidth ctx - (2 + nameW + symW + textW (gDash g <> "  no postings yet") + 2)
     hintText h = "forecast " <> fhDescription h <> " " <> fmtNative f (fhNative h)
-      <> maybe "" (\v -> " ≈ " <> fmtQty f (negate v)) (fhValued h)
+      <> maybe "" (\v -> (" " <> gApprox g <> " ") <> fmtQty f (negate v)) (fhValued h)
       <> (if fhMore h > 0 then " +" <> T.pack (show (fhMore h)) else "")
 
     keys = [("↑↓←→", "month"), ("⏎", "open month"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
