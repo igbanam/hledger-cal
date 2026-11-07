@@ -1,0 +1,33 @@
+$ hledger cal -W -p 2026-10-26 -f design.journal
+
+◀ Week 44  26 Oct – 1 Nov 2026 ▶  all accounts                                                      year  quarter  month  week  commodities
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ valued in  ₦ NGN  $ USD  Dh AED •  € EUR  ₹ INR  KD KWD  native   NGN = default · D directive                                            │
+│                                                                                         rates at  period end  txn date  today   inferred │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+INCOME                     │ EXPENSES                   │ NET                        │ FX EFFECT                 │ ACTIVITY
+0                          │ −1,930,500                 │ −1,930,500                 │ −12,000                   │ 3 txns
+none this week             │ 96% of it is payroll       │ — of income kept           │ period-end vs txn-date    │ 3 of 7 days
+                           │ ██████████████████████████ │                            │ rates                     │ 2 currencies
+                           │ $ 96.3% · ₦ 3.7%           │                            │ mostly USD payroll        │
+                           │                            │                            │ (−12,000)                 │
+
+Mon 26              0  ·
+Tue 27        −30,500  ▋
+  Diesel — generator
+    expenses:fuel  Port Harcourt     ₦30,500                −30,500
+Wed 28              0  ·
+Thu 29              0  ·
+Fri 30     −1,860,000  ███████████████████████████████████
+  Household payroll — Oct
+    expenses:payroll:security        $700.00  @1,550.00  −1,085,000
+    expenses:payroll:domestic        $500.00  @1,550.00    −775,000
+    FX effect −12,000 (txn-date rate 1,540.00)
+Sat 31        −40,000  ▊
+  Prepaid meter
+    expenses:utilities:power  Abuja  ₦40,000                −40,000
+Sun 1 Nov           0  ·
+
+ ←→  day   ↑↓  transaction   [ ]  week   c  currency   v  rates at   /  filter account       bar = day's spend · grey = native amount @ rate
+ q  quit

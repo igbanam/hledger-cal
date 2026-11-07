@@ -2,7 +2,7 @@
 -- cards and the key-hint footer. Pure.
 module Cal.View.Chrome
   ( topChrome
-  , incomeCard, expensesCard, netCard, fxCard, activityCard
+  , card, sub, incomeCard, expensesCard, netCard, fxCard, activityCard
   , cardRow, mixBlock, footerBlock
   ) where
 

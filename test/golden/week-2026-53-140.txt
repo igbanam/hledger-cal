@@ -1,0 +1,22 @@
+$ hledger cal -W -p 2026-12-28 -f design.journal
+
+◀ Week 53  28 Dec 2026 – 3 Jan 2027 ▶  all accounts                                                 year  quarter  month  week  commodities
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ valued in  ₦ NGN  $ USD  Dh AED •  € EUR  ₹ INR  KD KWD  native   NGN = default · D directive     rates at  period end  txn date  today  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+INCOME                     │ EXPENSES                   │ NET                        │ FX EFFECT                 │ ACTIVITY
+0                          │ 0                          │ 0                          │ 0                         │ 0 txns
+none this week             │                            │ — of income kept           │ period-end vs txn-date    │ 0 of 7 days
+                           │                            │                            │ rates                     │ 0 currencies
+
+Mon 28     0  ·
+Tue 29     0  ·
+Wed 30     0  ·
+Thu 31     0  ·
+Fri 1 Jan  0  ·
+Sat 2      0  ·
+Sun 3      0  ·
+
+ ←→  day   ↑↓  transaction   [ ]  week   c  currency   v  rates at   /  filter account       bar = day's spend · grey = native amount @ rate
+ q  quit
