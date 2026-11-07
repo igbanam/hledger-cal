@@ -104,11 +104,14 @@ takeW n t = T.pack (go 0 (T.unpack t))
       | otherwise = c : go (acc + cw) cs
       where cw = textW (T.singleton c)
 
+-- | Right-align each line in @n@ columns; wider lines are cut as in 'padTo'.
 alignR :: Int -> Block -> Block
 alignR n b = Block n (map f (bLines b))
   where
     f l@(Line ss) = let w = lineW l in
-      if w >= n then l else Line (Seg (st RText) (T.replicate (n - w) " ") : ss)
+      if w > n then padLine n (cutLine n l)
+      else if w == n then l
+      else Line (Seg (st RText) (T.replicate (n - w) " ") : ss)
 
 boxed :: Glyphs -> Maybe Text -> Int -> Block -> Block
 boxed g title n b = Block n (top : map side (bLines (padTo inner b)) ++ [bottom])

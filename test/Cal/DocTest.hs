@@ -18,3 +18,9 @@ unit_ansiNone = renderAnsi ColorNone (str (bold (st RExp)) "a") @?= "a"
 unit_tint = tintRGB 60 (roleRGB RExp) @?= (152, 74, 70)
 unit_acct = truncAccount 20 "expenses:household:maintenance:plumbing" @?= "ex:ho:ma:plumbing"
 unit_256 = ansiFg Color256 (roleRGB RInc) @?= "\ESC[38;5;75m"
+
+unit_alignRCuts :: Assertion
+unit_alignRCuts = do
+  let b = alignR 4 (vcat [str (st RText) "ab", str (st RText) "abcdef"])
+  plainText b @?= "  ab\nabc…"
+  bWidth b @?= 4
