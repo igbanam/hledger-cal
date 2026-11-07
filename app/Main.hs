@@ -7,6 +7,7 @@ import Cal.Print (renderPrint)
 import Cal.Types (Output (..), Settings (..), Terminal (..))
 import Data.Char (toLower)
 import Data.List (isInfixOf)
+import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Time.LocalTime (getZonedTime, localDay, zonedTimeToLocalTime)
@@ -25,7 +26,7 @@ main = do
   j <- either die' pure loaded
   tty <- hIsTerminalDevice stdout
   enc <- getLocaleEncoding
-  cols <- (>>= readMaybe) <$> lookupEnv "COLUMNS"
+  cols <- (>>= (\c -> readMaybe c >>= \n -> if n > 0 then Just n else Nothing)) <$> lookupEnv "COLUMNS"
   noColor <- (/= Nothing) <$> lookupEnv "NO_COLOR"
   ct <- lookupEnv "COLORTERM"
   let term = Terminal
@@ -43,6 +44,6 @@ main = do
   case sOutput s of
     OutPrint w -> printAt w
     -- Task 29 wires Cal.Tui.App.runTui; until then fall back to print.
-    OutTui -> printAt (maybe 140 id (tColumns term))
+    OutTui -> printAt (fromMaybe 140 (tColumns term))
   where
-    die' err = hPutStrLn stderr err >> exitWith (ExitFailure 1)
+    die' err = hSetEncoding stderr utf8 >> hPutStrLn stderr err >> exitWith (ExitFailure 1)

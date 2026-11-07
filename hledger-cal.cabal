@@ -103,7 +103,7 @@ test-suite spec
     Cal.ViewRegisterTest
     Cal.PrintTest
     Cal.TuiStateTest
-  build-tool-depends: tasty-discover:tasty-discover
+  build-tool-depends: tasty-discover:tasty-discover, hledger-cal:hledger-cal
   build-depends:
     tasty, tasty-hunit, tasty-golden, bytestring, process, hledger-cal,
     base,
