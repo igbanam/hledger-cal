@@ -1,0 +1,20 @@
+; Edge cases for hledger-cal. No D directive, no type: tags (types are
+; inferred from account names). "today" for every test is 2026-11-06.
+
+commodity ₦1,000,000.
+
+2026-10-01 Salary
+    income:salary          ₦-1,000,000
+    assets:bank
+
+2026-10-10 An extremely long description that will never fit in any calendar cell at all
+    expenses:household:maintenance:plumbing:emergency-callout   ₦123,456,789,012
+    liabilities:loan
+
+2026-10-12 Coffee beans
+    expenses:food          0.01 BTC
+    assets:crypto
+
+2026-10-14 Refund  ; location: Lagos
+    expenses:food          ₦-5,000  ; location: Ikeja
+    assets:bank

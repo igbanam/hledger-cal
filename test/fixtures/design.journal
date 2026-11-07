@@ -1,0 +1,283 @@
+; Synthetic fixture reproducing the hledger-cal design canvas figures.
+; "today" for every test is 2026-11-06.
+
+commodity ₦1,000,000.
+commodity $1,000.00
+commodity Dh 1,000.00
+commodity €1,000.00
+commodity ₹1,000.00
+commodity KD 1,000.000
+commodity 1,000. MTNN
+commodity 1,000. VOO
+D ₦1,000,000.
+
+account assets:bank:ngn      ; type: C
+account assets:bank:usd      ; type: C
+account assets:bank:aed      ; type: C
+account assets:bank:eur      ; type: C
+account assets:bank:inr      ; type: C
+account assets:bank:kwd      ; type: C
+account assets:brokerage     ; type: A
+account equity:opening       ; type: E
+account income               ; type: R
+account expenses             ; type: X
+
+P 2026-01-01 € ₦1,700
+P 2026-01-01 ₹ ₦17.00
+P 2026-01-01 KD ₦4,800
+P 2026-01-01 Dh ₦400
+P 2026-01-01 MTNN ₦300
+P 2026-01-01 VOO $480
+P 2026-08-14 Dh ₦422
+P 2026-09-30 € ₦1,788
+P 2026-09-30 ₹ ₦17.43
+P 2026-09-30 KD ₦4,990
+P 2026-09-30 MTNN ₦405
+P 2026-09-30 VOO $545
+P 2026-10-16 KD ₦5,000
+P 2026-10-20 € ₦1,800
+P 2026-10-22 ₹ ₦17.50
+P 2026-10-31 MTNN ₦420
+P 2026-10-31 VOO $560
+
+~ monthly from 2026-01-28  Household payroll
+    expenses:payroll:security     $700
+    expenses:payroll:domestic     $500
+    assets:bank:usd
+
+2026-01-01 Opening balances
+    assets:bank:ngn        ₦5,000,000
+    assets:bank:usd        $2,400 @ ₦1,450
+    assets:bank:aed        Dh 1,000
+    assets:bank:eur        €250
+    assets:bank:inr        ₹16,800
+    assets:bank:kwd        KD 25.000
+    assets:brokerage       1,000 MTNN @ ₦300
+    assets:brokerage       3 VOO @ $480
+    equity:opening
+
+2026-01-01 Salary
+    income:salary          ₦-2,500,000
+    assets:bank:ngn
+
+2026-01-10 Groceries
+    expenses:food          ₦300,000
+    assets:bank:ngn
+
+2026-01-25 Buy USD
+    assets:bank:usd        $1,200 @ ₦1,480
+    assets:bank:ngn
+
+2026-01-28 Household payroll
+    expenses:payroll:security     $700
+    expenses:payroll:domestic     $500
+    assets:bank:usd
+
+2026-02-01 Salary
+    income:salary          ₦-2,500,000
+    assets:bank:ngn
+
+2026-02-10 Groceries
+    expenses:food          ₦300,000
+    assets:bank:ngn
+
+2026-02-25 Buy USD
+    assets:bank:usd        $1,200 @ ₦1,485
+    assets:bank:ngn
+
+2026-02-28 Household payroll
+    expenses:payroll:security     $700
+    expenses:payroll:domestic     $500
+    assets:bank:usd
+
+2026-03-01 Salary
+    income:salary          ₦-2,500,000
+    assets:bank:ngn
+
+2026-03-10 Groceries
+    expenses:food          ₦300,000
+    assets:bank:ngn
+
+2026-03-25 Buy USD
+    assets:bank:usd        $1,200 @ ₦1,490
+    assets:bank:ngn
+
+2026-03-28 Household payroll
+    expenses:payroll:security     $700
+    expenses:payroll:domestic     $500
+    assets:bank:usd
+
+2026-04-01 Salary
+    income:salary          ₦-2,500,000
+    assets:bank:ngn
+
+2026-04-10 Groceries
+    expenses:food          ₦300,000
+    assets:bank:ngn
+
+2026-04-25 Buy USD
+    assets:bank:usd        $1,200 @ ₦1,495
+    assets:bank:ngn
+
+2026-04-28 Household payroll
+    expenses:payroll:security     $700
+    expenses:payroll:domestic     $500
+    assets:bank:usd
+
+2026-05-01 Salary
+    income:salary          ₦-2,500,000
+    assets:bank:ngn
+
+2026-05-10 Groceries
+    expenses:food          ₦300,000
+    assets:bank:ngn
+
+2026-05-25 Buy USD
+    assets:bank:usd        $1,200 @ ₦1,500
+    assets:bank:ngn
+
+2026-05-28 Household payroll
+    expenses:payroll:security     $700
+    expenses:payroll:domestic     $500
+    assets:bank:usd
+
+2026-06-01 Salary
+    income:salary          ₦-2,500,000
+    assets:bank:ngn
+
+2026-06-10 Groceries
+    expenses:food          ₦300,000
+    assets:bank:ngn
+
+2026-06-25 Buy USD
+    assets:bank:usd        $1,200 @ ₦1,505
+    assets:bank:ngn
+
+2026-06-28 Household payroll
+    expenses:payroll:security     $700
+    expenses:payroll:domestic     $500
+    assets:bank:usd
+
+2026-07-01 Salary
+    income:salary          ₦-2,500,000
+    assets:bank:ngn
+
+2026-07-10 Groceries
+    expenses:food          ₦300,000
+    assets:bank:ngn
+
+2026-07-25 Buy USD
+    assets:bank:usd        $1,200 @ ₦1,510
+    assets:bank:ngn
+
+2026-07-28 Household payroll
+    expenses:payroll:security     $700
+    expenses:payroll:domestic     $500
+    assets:bank:usd
+
+2026-08-01 Salary
+    income:salary          ₦-2,500,000
+    assets:bank:ngn
+
+2026-08-10 Groceries
+    expenses:food          ₦300,000
+    assets:bank:ngn
+
+2026-08-25 Buy USD
+    assets:bank:usd        $1,200 @ ₦1,515
+    assets:bank:ngn
+
+2026-08-14 Dubai trip
+    expenses:travel        Dh 500
+    assets:bank:aed
+
+2026-08-20 Generator repair
+    expenses:repairs       ₦500,000
+    assets:bank:ngn
+
+2026-08-28 Household payroll
+    expenses:payroll:security     $700
+    expenses:payroll:domestic     $500
+    assets:bank:usd
+
+2026-09-01 Salary
+    income:salary          ₦-2,500,000
+    assets:bank:ngn
+
+2026-09-10 Groceries
+    expenses:food          ₦300,000
+    assets:bank:ngn
+
+2026-09-25 Buy USD
+    assets:bank:usd        $1,200 @ ₦1,520
+    assets:bank:ngn
+
+2026-09-28 Household payroll
+    expenses:payroll:security     $700
+    expenses:payroll:domestic     $500
+    assets:bank:usd
+
+2026-10-01 Salary
+    income:salary          ₦-2,500,000
+    assets:bank:ngn
+
+2026-10-02 Groceries
+    expenses:food          ₦45,000
+    assets:bank:ngn
+
+2026-10-05 Rent share
+    expenses:housing       ₦120,000
+    assets:bank:ngn
+
+2026-10-09 Internet
+    expenses:utilities:internet  ₦38,500
+    assets:bank:ngn
+
+2026-10-13 Market
+    expenses:food          ₦62,000
+    assets:bank:ngn
+
+2026-10-15 Buy MTNN
+    assets:brokerage       500 MTNN @ ₦410
+    assets:bank:ngn
+
+2026-10-16 Visa fee
+    expenses:fees          KD 5.000
+    assets:bank:kwd
+
+2026-10-20 Consulting
+    income:freelance       €-100
+    assets:bank:eur
+
+2026-10-22 Books from India
+    expenses:books         ₹4,800
+    assets:bank:inr
+
+2026-10-27 Diesel — generator  ; location: Port Harcourt
+    expenses:fuel          ₦30,500
+    assets:bank:ngn
+
+2026-10-28 Buy USD
+    assets:bank:usd        $1,200 @ ₦1,540
+    assets:bank:ngn
+
+2026-10-30 Household payroll — Oct
+    expenses:payroll:security     $700
+    expenses:payroll:domestic     $500
+    assets:bank:usd
+
+2026-10-31 Prepaid meter  ; location: Abuja
+    expenses:utilities:power  ₦40,000
+    assets:bank:ngn
+
+2026-10-31 Buy USD
+    assets:bank:usd        $100 @ ₦1,550
+    assets:bank:ngn
+
+2026-11-02 Salary
+    income:salary          ₦-2,500,000
+    assets:bank:ngn
+
+2026-11-03 Groceries
+    expenses:food          ₦410,000
+    assets:bank:ngn
