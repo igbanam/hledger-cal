@@ -53,7 +53,8 @@ linesB = vcat . map line
 
 -- | Word-wrapped text in one style; over-long words are truncated.
 wrapText :: Glyphs -> Style -> Int -> Text -> Block
-wrapText g s w t = linesB (flow w [Seg s " "] [[Seg s (truncEnd g w wd)] | wd <- T.words t])
+wrapText g s w t = linesB
+  [ [Seg s (T.concat [x | Seg _ x <- ss])] | ss <- flow w [Seg s " "] [[Seg s (truncEnd g w wd)] | wd <- T.words t] ]
 
 -- * Top chrome
 
@@ -111,7 +112,8 @@ currencyBarBlock ctx cb = boxed g Nothing w (hcat 0 [str plain " ", padTo cw (li
     rates = Seg dim "rates at" : Seg plain " "
       : [ Seg (if r == cbRateAt cb then bold plain else dim) (" " <> n <> " ")
         | (r, n) <- [(AtPeriodEnd, "period end"), (AtTxnDate, "txn date"), (AtToday, "today")] ]
-    priceNote = maybe [] (\t -> [Seg dim t]) (cbPriceNote cb)
+    -- the model joins sources with " · "; use the glyph set's separator
+    priceNote = maybe [] (\t -> [Seg dim (T.replace " · " (gSep g) t)]) (cbPriceNote cb)
     two = [Seg plain "  "]
     -- chips (wrapped), then the note on the last chip line if it fits
     chipLines = flow cw [] chips
@@ -222,8 +224,7 @@ mixBlock ctx kind w (Mix xs) = vcat [bar, linesB (flow w [Seg dim (gSep g)] lege
     widths = zipWith (-) (drop 1 bounds) bounds
     bar = line [ Seg (tinted t (st role)) (T.replicate cells (T.singleton (rankCh i)))
                | (i, t, cells) <- zip3 [0 :: Int ..] tints widths, cells > 0 ]
-    legend = [ [Seg (tinted t (st role)) (fromMaybe c (symbolOf c) <> " " <> fmtPct sh)]
-             | ((c, sh), t) <- zip xs tints ]
+    legend = [ [Seg dim (fromMaybe c (symbolOf c) <> " " <> fmtPct sh)] | (c, sh) <- xs ]
 
 -- | Key hints on the left (replaced by the message, in the warning colour,
 -- when there is one) and the legend on the right.

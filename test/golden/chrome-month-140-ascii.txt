@@ -3,7 +3,7 @@ $ hledger cal -M -p 2026-10 -f design.journal
 < October 2026 >  all accounts                                                                      year  quarter  month  week  commodities
 +------------------------------------------------------------------------------------------------------------------------------------------+
 | valued in  ₦ NGN  $ USD  Dh AED *  € EUR  ₹ INR  KD KWD  native   NGN = default . D directive                                            |
-|                                                                                rates at  period end  txn date  today   market · inferred |
+|                                                                                rates at  period end  txn date  today   market . inferred |
 +------------------------------------------------------------------------------------------------------------------------------------------+
 
 INCOME                     | EXPENSES                   | NET                        | FX EFFECT                 | ACTIVITY
