@@ -4,10 +4,10 @@ import Cal.Cli (mkSettings, parseCli)
 import Cal.Journal (loadJournal)
 import Cal.Model.Common (mkEnv)
 import Cal.Print (renderPrint)
+import Cal.Tui.App (runTui)
 import Cal.Types (Output (..), Settings (..), Terminal (..))
 import Data.Char (toLower)
 import Data.List (isInfixOf)
-import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Time.LocalTime (getZonedTime, localDay, zonedTimeToLocalTime)
@@ -43,7 +43,6 @@ main = do
         Right out -> hSetEncoding stdout utf8 >> T.putStrLn out
   case sOutput s of
     OutPrint w -> printAt w
-    -- Task 29 wires Cal.Tui.App.runTui; until then fall back to print.
-    OutTui -> printAt (fromMaybe 140 (tColumns term))
+    OutTui -> runTui (inputopts_ opts) env
   where
     die' err = hSetEncoding stderr utf8 >> hPutStrLn stderr err >> exitWith (ExitFailure 1)

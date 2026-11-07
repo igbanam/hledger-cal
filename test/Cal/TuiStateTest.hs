@@ -1,14 +1,21 @@
 module Cal.TuiStateTest where
 
+import Brick (renderWidget)
+import Brick.AttrMap (attrMapLookup)
+import qualified Cal.Doc as Doc
 import Cal.Journal (journalDataRange)
 import Cal.Model.Common (Env (..))
 import Cal.Model.Commodities (CommodityRow (..), CommoditiesModel (..), commoditiesModel)
+import Cal.Theme (Role (..))
+import Cal.Tui.App (blockWidget, calAttrMap, styleAttr)
 import Cal.Tui.State
 import Cal.Types
 import Data.Maybe (isJust)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime)
+import qualified Data.Text.Lazy as TL
 import qualified Graphics.Vty as Vty
+import Graphics.Vty.Image.Internal (Image (..))
 import Hledger.Query (Query (Any))
 import Support (edgePath, envFor, fixtureToday, loadFixture)
 import Test.Tasty.HUnit
@@ -144,3 +151,20 @@ unit_escNothing = do
   s0 <- mk ["-M", "-p", "2026-10"]
   let s = run s0 [CmdEsc]
   (usPane s, usBack s, focus s) @?= (PaneNone, [], d 2026 10 1)
+
+-- | Attrs of every text run containing the given text in a rendered image.
+attrsOf :: TL.Text -> Image -> [Vty.Attr]
+attrsOf t img = case img of
+  HorizText a txt _ _ -> [a | t `TL.isInfixOf` txt]
+  HorizJoin l r _ _ -> attrsOf t l ++ attrsOf t r
+  VertJoin a b _ _ -> attrsOf t a ++ attrsOf t b
+  Crop i _ _ _ _ -> attrsOf t i
+  _ -> []
+
+unit_attrMapCoversRoles :: IO ()
+unit_attrMapCoversRoles = do
+  let style = Doc.bold (Doc.tinted 60 (Doc.st RExp))
+      pic = renderWidget (Just calAttrMap) [blockWidget (Doc.str style "x")] (10, 1)
+      expected = attrMapLookup (styleAttr style) calAttrMap
+  assertBool "attr name is defined in calAttrMap" (expected /= Vty.defAttr)
+  concatMap (attrsOf "x") (Vty.picLayers pic) @?= [expected]
