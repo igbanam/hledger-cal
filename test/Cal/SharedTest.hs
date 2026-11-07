@@ -107,3 +107,8 @@ unit_location :: IO ()
 unit_location = do
   oct <- octEnv
   [drLocation r | t <- ddTxns (dayDetail oct octSpan (d 2026 10 27)), r <- tbRows t] @?= [Just "Port Harcourt"]
+
+unit_staleYear :: IO ()
+unit_staleYear = do
+  env <- envFor ["-Y"]
+  [c | (c, True) <- cbChoices (currencyBar env (Span (fromGregorian 2026 1 1) (fromGregorian 2027 1 1)))] @?= ["Dh"]

@@ -24,7 +24,7 @@ quarterModel env = QuarterModel
   { qmSpan = span', qmBar = bar
   , qmCards = zipWith card [1 ..] (subSpans IQuarter span')
   , qmToDate = kpisFor env IYear toDate
-  , qmStale = [c | (c, True) <- cbChoices (currencyBar env toDate)]
+  , qmStale = [c | (c, True) <- cbChoices bar]
   , qmScale = scale, qmCursor = quarterOf (sFocus s) }
   where
     s = envSettings env

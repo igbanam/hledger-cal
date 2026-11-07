@@ -117,11 +117,12 @@ data RateRow = RateRow
 data RatesPanel = RatesPanel { rpDate :: !Day, rpBase :: !CommoditySymbol, rpRows :: ![RateRow] }
   deriving (Eq, Show)
 
--- | The day rates are quoted on: the span's last day, or today for AtToday.
+-- | The day rates are quoted on: the span's last day capped at today (a
+-- future period end must not make rates look stale), or today for AtToday.
 ratesDate :: Env -> Span -> Day
 ratesDate env span' = case sRateAt s of
   AtToday -> sToday s
-  _ -> lastDay span'
+  _ -> min (lastDay span') (sToday s)
   where s = envSettings env
 
 nativeCommodities :: VPosting -> [CommoditySymbol]
