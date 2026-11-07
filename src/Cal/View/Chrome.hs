@@ -5,6 +5,7 @@ module Cal.View.Chrome
   , card, sub, incomeCard, expensesCard, netCard, fxCard, activityCard
   , cardRow, mixBlock, footerBlock
   , dim, plain, spaces, segsW, signStyle, acctSegs
+  , colW, acctNeed, rowValue
   ) where
 
 import Data.List (intersperse)
@@ -49,6 +50,18 @@ acctSegs g w sty r =
         Just l | left >= 3 -> [Seg dim ("  " <> truncEnd g left l)]
         _ -> []
   in Seg sty a : locSegs
+
+-- | Widest of a column's cells (0 when empty).
+colW :: (a -> Int) -> [a] -> Int
+colW h = maximum . (0 :) . map h
+
+-- | Columns an account plus its location need.
+acctNeed :: DetailRow -> Int
+acctNeed r = textW (drAccount r) + maybe 0 (\l -> 2 + textW l) (drLocation r)
+
+-- | A row's valued amount, signed from the cash-flow side (expenses negative).
+rowValue :: Fmt -> DetailRow -> Text
+rowValue f r = fmtSigned f (if drKind r == KExpense then negate (drValue r) else drValue r)
 
 segsW :: [Seg] -> Int
 segsW ss = sum [textW t | Seg _ t <- ss]

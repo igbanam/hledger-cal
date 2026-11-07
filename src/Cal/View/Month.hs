@@ -199,14 +199,12 @@ monthDoc ctx m = ViewDoc
           Just q -> "@ " <> baseSym <> fmtRate q
           Nothing | fBase f == Nothing || nativeIsBase r -> "native"
                   | otherwise -> gDash g
-        valueOf r = fmtSigned f (if drKind r == KExpense then negate (drValue r) else drValue r)
-        acctNeed r = textW (drAccount r) + maybe 0 (\l -> 2 + textW l) (drLocation r)
-        colW h = maximum (0 : map h rows)
-        natW = colW (textW . nativeOf . snd)
-        rateW = colW (textW . rateOf . snd)
-        valW = colW (textW . valueOf . snd)
-        descNeed = colW (textW . fst)
-        acctMax = colW (acctNeed . snd)
+        valueOf = rowValue f
+        natW = colW (textW . nativeOf . snd) rows
+        rateW = colW (textW . rateOf . snd) rows
+        valW = colW (textW . valueOf . snd) rows
+        descNeed = colW (textW . fst) rows
+        acctMax = colW (acctNeed . snd) rows
         room = max 0 (dI - natW - rateW - valW - 8)
         descW
           | descNeed + acctMax <= room = descNeed

@@ -83,14 +83,12 @@ weekDoc ctx m = ViewDoc
     base = fBase f /= Nothing
     nativeOf r = fmtNative f (drNative r)
     rateOf r = if base then maybe "" (\q -> "@" <> fmtRate q) (drRate r) else ""
-    valueOf r = if base then fmtSigned f (if drKind r == KExpense then negate (drValue r) else drValue r) else ""
-    colW h = maximum (0 : map h allRows)
-    natW = colW (textW . nativeOf)
-    rateW = colW (textW . rateOf)
-    valW = colW (textW . valueOf)
+    valueOf r = if base then rowValue f r else ""
+    natW = colW (textW . nativeOf) allRows
+    rateW = colW (textW . rateOf) allRows
+    valW = colW (textW . valueOf) allRows
     indent = 4
-    acctNeed r = textW (drAccount r) + maybe 0 (\l -> 2 + textW l) (drLocation r)
-    acctW = max 8 (min (colW acctNeed) (w - indent - natW - rateW - valW - 6))
+    acctW = max 8 (min (colW acctNeed allRows) (w - indent - natW - rateW - valW - 6))
 
     rowLine r =
       let as = acctSegs g acctW plain r
