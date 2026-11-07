@@ -1,0 +1,43 @@
+$ hledger cal --commodities -p 2026-10 -f design.journal
+
+◀ Commodities  October 2026 · held at 31 Oct ▶
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ valued in  ₦ NGN  $ USD  Dh AED •  € EUR  ₹ INR  KD KWD  native              │
+│ NGN = default · D directive                                                  │
+│                    rates at  period end  txn date  today   market · inferred │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+commodity         held   this month      price ₦    Δ mo      value ₦   share
+─────────────────────────────────────────────────────────────────────────────
+CURRENCIES
+₦ NGN       ₦8,056,000     −₦44,000     1 — base       —    8,056,000   49.4%
+$ USD        $2,500.00     +$100.00     1,550.00   +2.0%    3,875,000   23.7%
+Dh AED •     Dh 500.00            0       422.00       —      211,000    1.3%
+€ EUR          €350.00     +€100.00     1,800.00   +0.7%      630,000    3.9%
+₹ INR       ₹12,000.00   −₹4,800.00        17.50   +0.4%      210,000    1.3%
+KD KWD       KD 20.000    −KD 5.000     5,000.00   +0.2%      100,000    0.6%
+SECURITIES
+VOO              3 VOO            0   868,000.00   +4.8%    2,604,000   16.0%
+MTNN        1,500 MTNN    +500 MTNN       420.00   +3.7%      630,000    3.9%
+─────────────────────────────────────────────────────────────────────────────
+total       8 commodities  0 unpriced  1 stale price       16,316,000
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ NGN in ₦ · per unit · 12 months                                    — → — · — │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌─ How these numbers are made ─────────────────────────────────────────────────┐
+│ · A commodity is anything the journal counts: currencies, shares, units.     │
+│   Each one is valued in the base through any chain of prices (VOO → USD →    │
+│   NGN).                                                                      │
+│ · Prices come from P directives (e.g. a daily price feed) first. Otherwise   │
+│   they're inferred from transaction costs (@ / @@).                          │
+│ · Unrealized gain = value now − what was paid (the @ cost).                  │
+│ · A security priced only by inference moves only when you trade it. Add P    │
+│   directives to follow the market.                                           │
+│ • AED has no price since 14 Aug, so a 78-day-old rate is used.               │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+ ↑↓  commodity   ⏎  value in this               share = part of total value held
+ [ ]  period   v  rates at   /  filter account
+ q  quit
