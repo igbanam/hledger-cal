@@ -62,3 +62,10 @@ unit_scroll = do
   assertEqual "same height" 12 (length (bLines b))
   assertBool "first row dropped" (ls a !! 1 /= ls b !! 1)
   assertEqual "second row now first" (ls a !! 2) (ls b !! 1)
+
+unit_edge_numbers_intact :: Assertion
+unit_edge_numbers_intact = do
+  b <- pane ["-f", edgePath] d10 80 12 0
+  let t = plainText b
+  assertBool "native amount" ("\8358\&123,456,789,012" `T.isInfixOf` t)
+  assertEqual "value and running" 2 (T.count "\8722\&123,456,789,012" t)

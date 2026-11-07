@@ -28,7 +28,7 @@ registerPane ctx day height scroll rows = Block w (take height (bLines boxedB ++
     ascii = sGlyphSet s == GlyphsAscii
 
     title = truncEnd g (max 0 (w - 3)) $
-      "Register" <> sep <> fmtDayLong day <> sep <> T.pack (show n) <> " postings" <> sep <> mode
+      "Register" <> sep <> fmtDayLong day <> sep <> T.pack (show n) <> (if n == 1 then " posting" else " postings") <> sep <> mode
     mode = case sValuation s of
       Native -> "native"
       ValuedIn b -> "valued in " <> codeOf b <> " at " <> rateAtName (sRateAt s)
@@ -57,8 +57,8 @@ registerPane ctx day height scroll rows = Block w (take height (bLines boxedB ++
     cw = max 0 (inner - 2)
     gaps = 2 * 6
     avail = max 0 (cw - dateW - natW - rateW - valW - runW - gaps)
-    descW = min avail (min descNat (max (min descNat 10) (avail - acctNat)))
-    acctW = max 0 (min acctNat (avail - descW))
+    acctW = min avail (max (min acctNat 8) (min acctNat (avail - descNat)))
+    descW = max 0 (min descNat (avail - acctW))
 
     visible = max 0 (height - 3)
     shown = take visible (drop (max 0 scroll) rows)
