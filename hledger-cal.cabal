@@ -1,0 +1,130 @@
+cabal-version: 3.0
+name:          hledger-cal
+version:       0.1.0.0
+synopsis:      Calendar view of income and expenses for hledger
+build-type:    Simple
+
+common shared
+  default-language: GHC2021
+  default-extensions: OverloadedStrings
+  ghc-options: -Wall
+
+library
+  import: shared
+  hs-source-dirs: src
+  exposed-modules:
+    Cal.Types
+    Cal.Journal
+    Cal.Period
+    Cal.Currency
+    Cal.Currency.Table
+    Cal.Prices
+    Cal.Valuation
+    Cal.Cli
+    Cal.Glyphs
+    Cal.Format
+    Cal.Doc
+    Cal.Theme
+    Cal.Model.Common
+    Cal.Model.Shared
+    Cal.Model.Month
+    Cal.Model.Week
+    Cal.Model.Year
+    Cal.Model.Quarter
+    Cal.Model.Commodities
+    Cal.Model.Register
+    Cal.View.Types
+    Cal.View.Chrome
+    Cal.View.Year
+    Cal.View.Quarter
+    Cal.View.Month
+    Cal.View.Week
+    Cal.View.Commodities
+    Cal.View.Register
+    Cal.View
+    Cal.Print
+    Cal.Tui.State
+    Cal.Tui.App
+  build-depends:
+    base,
+    text,
+    containers,
+    time,
+    Decimal,
+    microlens,
+    hledger-lib ==1.52.*,
+    hledger ==1.52.*,
+    brick >=2.4 && <3,
+    vty >=6.1,
+    vty-crossplatform >=0.4,
+    doclayout,
+    directory,
+    filepath,
+    safe
+
+executable hledger-cal
+  import: shared
+  main-is: Main.hs
+  hs-source-dirs: app
+  ghc-options: -threaded -rtsopts
+  build-depends: base, hledger-cal
+
+test-suite spec
+  import: shared
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  hs-source-dirs: test
+  other-modules:
+    Support
+    Cal.JournalTest
+    Cal.PeriodTest
+    Cal.CurrencyTest
+    Cal.PricesTest
+    Cal.ValuationTest
+    Cal.CliTest
+    Cal.GlyphsTest
+    Cal.FormatTest
+    Cal.DocTest
+    Cal.CommonTest
+    Cal.SharedTest
+    Cal.MonthTest
+    Cal.WeekTest
+    Cal.YearTest
+    Cal.QuarterTest
+    Cal.CommoditiesTest
+    Cal.RegisterTest
+    Cal.ParityTest
+    Cal.ChromeTest
+    Cal.ViewYearTest
+    Cal.ViewQuarterTest
+    Cal.ViewMonthTest
+    Cal.ViewWeekTest
+    Cal.ViewCommoditiesTest
+    Cal.ViewRegisterTest
+    Cal.PrintTest
+    Cal.TuiStateTest
+  build-tool-depends: tasty-discover:tasty-discover
+  build-depends:
+    tasty, tasty-hunit, tasty-golden, bytestring, hledger-cal,
+    base,
+    text,
+    containers,
+    time,
+    Decimal,
+    microlens,
+    hledger-lib ==1.52.*,
+    hledger ==1.52.*,
+    brick >=2.4 && <3,
+    vty >=6.1,
+    vty-crossplatform >=0.4,
+    doclayout,
+    directory,
+    filepath,
+    safe
+
+benchmark startup
+  import: shared
+  type: exitcode-stdio-1.0
+  main-is: Startup.hs
+  hs-source-dirs: bench
+  build-depends: base, hledger-cal
