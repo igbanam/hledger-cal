@@ -3,7 +3,7 @@ module Cal.FormatTest where
 import Data.Decimal (Decimal)
 import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
-import Hledger (Amount (..), MixedAmount, mixedAmount, nullamt)
+import Hledger (Amount (..), AmountCost (..), MixedAmount, mixedAmount, nullamt)
 import Test.Tasty.HUnit
 
 import Cal.Format
@@ -14,11 +14,12 @@ import Support (designPath, loadFixture)
 one :: Text -> Decimal -> MixedAmount
 one c q = mixedAmount nullamt { acommodity = c, aquantity = q }
 
-ngn, usd, kd, btc :: Decimal -> MixedAmount
+ngn, usd, kd, btc, eur :: Decimal -> MixedAmount
 ngn = one "₦"
 usd = one "$"
 kd = one "KD"
 btc = one "BTC"
+eur = one "€"
 
 fmtWith :: GlyphSet -> IO Fmt
 fmtWith g = (\j -> mkFmt j (ValuedIn "₦") (glyphsFor g)) <$> loadFixture designPath
@@ -45,3 +46,20 @@ unit_dates =
     @?= ("31 Oct", "Fri 30 Oct 2026", "October 2026")
 unit_scale = fmtU >>= \f -> (fmtScale f 2829000, fmtScale f 950000) @?= ("₦2.8M", "₦950k")
 unit_asciiMinus = fmtWith GlyphsAscii >>= \f -> fmtSigned f (ngn (-5)) @?= "-5"
+
+unit_qty :: Assertion
+unit_qty = do
+  u <- fmtU
+  a <- fmtWith GlyphsAscii
+  (map (fmtQty u) [12000, 0, -12000], map (fmtQty a) [12000, 0, -12000])
+    @?= (["+12,000", "0", "−12,000"], ["+12,000", "0", "-12,000"])
+
+unit_negTail, unit_nativeSigned, unit_sumsBase :: Assertion
+unit_negTail = fmtU >>= \f -> fmtSigned f (ngn 12000 <> btc (-0.01)) @?= "+12,000 − 0.01 BTC"
+unit_nativeSigned = do
+  j <- loadFixture designPath
+  let f = mkFmt j Native (glyphsFor GlyphsUtf8)
+  fmtSigned f (ngn 2500000 <> eur 100) @?= "+₦2,500,000 + €100.00"
+unit_sumsBase = fmtU >>= \f ->
+  fmtSigned f (ngn 100 <> mixedAmount nullamt { acommodity = "₦", aquantity = 50, acost = Just (UnitCost nullamt { acommodity = "$", aquantity = 2 }) } <> btc 0.01)
+    @?= "+150 + 0.01 BTC"
