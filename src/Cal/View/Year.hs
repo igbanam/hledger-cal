@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | The Year face: four quarter groups of month rows. Pure.
-module Cal.View.Year (yearDoc) where
+module Cal.View.Year (yearDoc, monthRowBlocks, dim, plain, spaces) where
 
 import Data.List (intersperse)
 import Data.Text (Text)
@@ -80,24 +80,19 @@ yearDoc ctx m = ViewDoc
       ds -> str (st RExp) (truncEnd g cw (T.pack (show (length ds)) <> " overspent (" <> T.intercalate ", " (map monAbbr ds) <> ")"))
     top = topChrome ctx title (ymBar m) [cards]
 
-    -- column widths
-    showSyms = rcTier ctx >= Tier120
-    nameW = 11
-    symW = if showSyms then 12 else 0
     allRows = [ r | q <- ymGroups m, r <- qgMonths q ]
-    bw = if ymScale m == Nothing then 0 else rcWidth ctx `div` 3
-    avail = rcWidth ctx - (2 + nameW + symW + bw) - 4 - 3
-    needFig = maximum (0 : [ textW (fmtAbs f x) | r <- allRows, x <- [mrIncome r, mrExpenses r] ])
-    needNet = maximum (0 : [ textW (fmtSigned f (mrNet r)) | r <- allRows ])
-    netW0 = min needNet (avail `div` 2)
-    figW = min needFig (avail - netW0)
-    netW = min needNet (avail - figW)
+    rowsW = rcWidth ctx
+    bwFor _ = if ymScale m == Nothing then 0 else rcWidth ctx `div` 3
+    rowBlocks = monthRowBlocks ctx rowsW True bwFor
+      (if rcInteractive ctx then Just (ymCursor m) else Nothing) allRows allRows
+    grouped = go (ymGroups m) rowBlocks
+      where
+        go [] _ = []
+        go (q : qs) rs = let (a, b) = splitAt (length (qgMonths q)) rs in (q, a) : go qs b
 
     -- body: tagged blocks (is the cursor row?), a blank line between groups
-    cursorMonth = [ spStart (mrSpan r) | q <- ymGroups m, r <- qgMonths q
-                  , spStart (mrSpan r) <= ymCursor m, ymCursor m < spEnd (mrSpan r) ]
     tagged = concat (intersperse [(False, blankB)]
-      [ (False, header q) : [ (isCursorRow r, rowBlock r) | r <- qgMonths q ] | q <- ymGroups m ])
+      [ (False, header q) : rs | (q, rs) <- grouped ])
     blankB = Block 0 [Line []]
     body = vcat (map snd tagged)
     offsets = scanl (+) 0 [ length (bLines b) | (_, b) <- tagged ]
@@ -112,10 +107,39 @@ yearDoc ctx m = ViewDoc
         Open -> [Seg dim ("open" <> gSep g <> "to " <> fmtDayMon today)]
         _ -> [Seg dim (maybe (gDash g) fmtPct (qgSpent q) <> " spent")]
 
+    keys = [("↑↓←→", "month"), ("⏎", "open month"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
+    legend = line $
+      [ Seg dim "bars: ", Seg (st RInc) (gLegendBar g), Seg dim " in ", Seg (st RExp) (gLegendBar g), Seg dim " out" ]
+      ++ [ Seg dim (gSep g <> "scale " <> fmtScale f sc) | Just sc <- [ymScale m] ]
+      ++ [ Seg dim (gSep g <> "symbols = currencies used") ]
+
+-- | Month rows (two lines each, one for a future month with no postings) as
+-- tagged blocks, the flag marking the row holding the cursor day. @w@ is the
+-- width available, @bwFor@ turns the width the figure columns need into the
+-- bar width, @sizing@ are the rows the column widths are measured over.
+monthRowBlocks :: RenderCtx -> Int -> Bool -> (Int -> Int) -> Maybe Day -> [MonthRow] -> [MonthRow] -> [(Bool, Block)]
+monthRowBlocks ctx w showSyms0 bwFor cursor sizing rows = [ (isCursorRow r, rowBlock r) | r <- rows ]
+  where
+    g = rcGlyphs ctx
+    f = rcFmt ctx
+    today = sToday (rcSettings ctx)
+    showSyms = showSyms0 && rcTier ctx >= Tier120
+    nameW = 11
+    symW = if showSyms then 12 else 0
+    needFig = maximum (0 : [ textW (fmtAbs f x) | r <- sizing, x <- [mrIncome r, mrExpenses r] ])
+    needNet = maximum (0 : [ textW (fmtSigned f (mrNet r)) | r <- sizing ])
+    bw = bwFor (needFig + needNet)
+    avail = w - (2 + nameW + symW + bw) - 4 - 3
+    netW0 = min needNet (avail `div` 2)
+    figW = min needFig (avail - netW0)
+    netW = min needNet (avail - figW)
+
     rowBlock r
       | mrStatus r == Future && not (mrHasPostings r) = futureRow r
       | otherwise = vcat [row1 r, row2 r]
-    isCursorRow r = rcInteractive ctx && spStart (mrSpan r) `elem` cursorMonth
+    isCursorRow r = case cursor of
+      Just c -> spStart (mrSpan r) <= c && c < spEnd (mrSpan r)
+      Nothing -> False
     nameSegs r =
       let nm = monAbbr (spStart (mrSpan r))
           nmSty = if isCursorRow r then inverse (bold (st RCursor)) else bold plain
@@ -128,7 +152,7 @@ yearDoc ctx m = ViewDoc
       Nothing -> [spaces bw]
       Just x -> let b = hbar g bw x in [Seg (st role) b, spaces (bw - textW b)]
     fig :: Int -> Style -> Text -> Seg
-    fig w sty t = let t' = truncEnd g w t in Seg sty (T.replicate (w - textW t') " " <> t')
+    fig fw sty t = let t' = truncEnd g fw t in Seg sty (T.replicate (fw - textW t') " " <> t')
     row1 r = line $
       [spaces 2] ++ nameSegs r ++ symSegs r ++ barSegs RInc (mrInFrac r)
       ++ [spaces 2, fig figW plain (fmtAbs f (mrIncome r)), spaces 2
@@ -138,17 +162,12 @@ yearDoc ctx m = ViewDoc
     row2 r = line $
       [spaces (2 + nameW + symW)] ++ barSegs RExp (mrOutFrac r)
       ++ [spaces 2, fig figW plain (fmtAbs f (mrExpenses r))]
+    noPostings = gDash g <> "  no postings yet"
     futureRow r = line $
       [spaces 2] ++ nameSegs r ++ symSegs r
-      ++ [Seg dim (gDash g <> "  no postings yet")]
+      ++ [Seg dim noPostings]
       ++ maybe [] (\h -> [Seg dim ("  " <> truncEnd g room (hintText h))]) (mrHint r)
-      where room = rcWidth ctx - (2 + nameW + symW + textW (gDash g <> "  no postings yet") + 2)
+      where room = w - (2 + nameW + symW + textW noPostings + 2)
     hintText h = "forecast " <> fhDescription h <> " " <> fmtNative f (fhNative h)
       <> maybe "" (\v -> (" " <> gApprox g <> " ") <> fmtQty f (negate v)) (fhValued h)
       <> (if fhMore h > 0 then " +" <> T.pack (show (fhMore h)) else "")
-
-    keys = [("↑↓←→", "month"), ("⏎", "open month"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
-    legend = line $
-      [ Seg dim "bars: ", Seg (st RInc) (gLegendBar g), Seg dim " in ", Seg (st RExp) (gLegendBar g), Seg dim " out" ]
-      ++ [ Seg dim (gSep g <> "scale " <> fmtScale f sc) | Just sc <- [ymScale m] ]
-      ++ [ Seg dim (gSep g <> "symbols = currencies used") ]

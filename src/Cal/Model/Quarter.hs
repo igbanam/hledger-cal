@@ -17,7 +17,8 @@ data QuarterCard = QuarterCard
 
 data QuarterModel = QuarterModel
   { qmSpan :: !Span, qmBar :: !CurrencyBar, qmCards :: ![QuarterCard], qmToDate :: !Kpis
-  , qmStale :: ![CommoditySymbol], qmScale :: !(Maybe Quantity), qmCursor :: !Int }
+  , qmStale :: ![CommoditySymbol]
+  , qmStaleAges :: ![(CommoditySymbol, Integer)], qmScale :: !(Maybe Quantity), qmCursor :: !Int }
 
 quarterModel :: Env -> QuarterModel
 quarterModel env = QuarterModel
@@ -25,12 +26,14 @@ quarterModel env = QuarterModel
   , qmCards = zipWith card [1 ..] (subSpans IQuarter span')
   , qmToDate = kpisFor env IYear toDate
   , qmStale = [c | (c, True) <- cbChoices bar]
+  , qmStaleAges = [(c, n) | Just b <- [envBase env], c <- qmStale0, Just n <- [staleOn env b (ratesDate env span') c]]
   , qmScale = scale, qmCursor = quarterOf (sFocus s) }
   where
     s = envSettings env
     today = sToday s
     span' = faceSpan FaceQuarter IQuarter (sFocus s)
     bar = currencyBar env span'
+    qmStale0 = [c | (c, True) <- cbChoices bar]
     toDate = Span (spStart span') (min (addDays 1 today) (spEnd span'))
     (rows, scale) = monthRows env (subSpans IMonth span')
     card i qspan = QuarterCard

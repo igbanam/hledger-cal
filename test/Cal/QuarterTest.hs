@@ -37,3 +37,6 @@ unit_q4Months = do
 
 unit_q4Exp :: Assertion
 unit_q4Exp = do q <- qm; n (kExpenses (qcKpis (qmCards q !! 3))) @?= 2715000
+
+unit_staleAges :: Assertion
+unit_staleAges = do q <- qm; qmStaleAges q @?= [("Dh", 84)]

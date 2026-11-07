@@ -11,6 +11,8 @@ module Cal.Model.Shared
   , ratesPanel
   , CurrencyBar (..)
   , currencyChoices
+  , ratesDate
+  , staleOn
   , currencyBar
   , DetailRow (..)
   , TxnBlock (..)
