@@ -67,7 +67,7 @@ executable hledger-cal
   main-is: Main.hs
   hs-source-dirs: app
   ghc-options: -threaded -rtsopts
-  build-depends: base, hledger-cal
+  build-depends: base, hledger-cal, text, time, hledger ==1.52.*, hledger-lib ==1.52.*
 
 test-suite spec
   import: shared
@@ -105,7 +105,7 @@ test-suite spec
     Cal.TuiStateTest
   build-tool-depends: tasty-discover:tasty-discover
   build-depends:
-    tasty, tasty-hunit, tasty-golden, bytestring, hledger-cal,
+    tasty, tasty-hunit, tasty-golden, bytestring, process, hledger-cal,
     base,
     text,
     containers,
