@@ -5,10 +5,12 @@ module Support
   , loadFixture
   , testTerminal
   , settingsFor
+  , envFor
   ) where
 
 import Cal.Cli (mkSettings, parseCli)
 import Cal.Journal (loadJournal)
+import Cal.Model.Common (Env, mkEnv)
 import Cal.Types (Settings, Terminal (..))
 import Data.Time.Calendar (Day, fromGregorian)
 import Hledger.Data.Types (Journal)
@@ -41,3 +43,6 @@ settingsFor args0 = do
   r <- loadJournal (inputopts_ opts) (file_ opts)
   j <- either (assertFailure . ("journal failed to load: " ++)) pure r
   either (assertFailure . ("settings failed: " ++)) (pure . (,) j) (mkSettings fixtureToday testTerminal opts j)
+
+envFor :: [String] -> IO Env
+envFor args = uncurry mkEnv <$> settingsFor args
