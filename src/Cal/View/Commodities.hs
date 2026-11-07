@@ -130,7 +130,7 @@ commoditiesDoc ctx m = ViewDoc
       | not (priced r) = dimD
       | otherwise = case (crPrice r, crStale r) of
           (Nothing, _) -> [Seg (st RWarn) "no price"]
-          (Just i, Just n) -> [Seg (st RWarn) ("stale" <> gSep g <> fmtDayMon (riDate i) <> gSep g <> T.pack (show n) <> " d")]
+          (Just i, Just n) -> [Seg (st RWarn) ("stale" <> gSep g <> fmtDayMon (riDate i) <> " (" <> T.pack (show n) <> " d)")]
           (Just i, Nothing) -> [Seg dim $ case riSource i of
             SrcDeclared -> "P" <> gSep g <> fmtDayMon (riDate i)
             SrcInferred -> "inferred" <> gSep g <> fmtDayMon (riDate i)

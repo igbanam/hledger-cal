@@ -76,7 +76,7 @@ unit_checks = do
   assertBool "mtnn" (hasLine t ["MTNN", "630,000", "P · 31 Oct"])
   assertBool "voo" (hasLine t ["VOO", "2,604,000", "via USD · 31 Oct"])
   assertBool "usd inferred" (hasLine t ["$ USD", "$2,500.00", "inferred · 31 Oct"])
-  assertBool "aed stale" (hasLine t ["AED •", "stale · 14 Aug · 78 d"])
+  assertBool "aed stale" (hasLine t ["AED •", "stale · 14 Aug (78 d)"])
   assertBool "total" (hasLine t ["total", "8 commodities", "0 unpriced", "16,316,000", "1 stale price"])
   assertBool "explainer title" ("How these numbers are made" `T.isInfixOf` t)
   mapM_ (\l -> assertBool ("explainer: " ++ T.unpack l) (l `T.isInfixOf` unwrapped t))
@@ -104,7 +104,10 @@ unit_edge :: Assertion
 unit_edge = do
   t <- plainText . snd <$> render edge defaultCursor 140 False
   assertBool "btc unpriced" (hasLine t ["BTC", "no price"])
-  assertBool "btc no zero value" (not (hasLine t ["BTC", " 0 "]))
+  -- the BTC row's cells, split on runs of two or more spaces
+  let btc = [ cells l | l <- T.lines t, "BTC " `T.isPrefixOf` l ]
+      cells l = filter (not . T.null) (map T.strip (T.splitOn "  " l))
+  btc @?= [["BTC", "−0.01 BTC", "−0.01 BTC", "—", "—", "············", "—", "—", "—", "no price"]]
   assertBool "total unpriced" (hasLine t ["total", "1 unpriced", "0 stale prices"])
 
 unit_ascii :: Assertion
