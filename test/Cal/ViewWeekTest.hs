@@ -65,7 +65,7 @@ unit_checks = do
   assertBool "no income" ("none this week" `T.isInfixOf` t)
   assertBool "empty day" (hasLine t ["Mon 26", "0", "·"])
   assertBool "sun" (hasLine t ["Sun 1 Nov"])
-  assertBool "fx line" ("FX effect −12,000 (txn-date rate 1,540.00)" `T.isInfixOf` t || "FX effect −12,000 (txn-date rate 1,540" `T.isInfixOf` t)
+  assertBool "fx line" (hasLine t ["    FX effect −12,000 (txn-date rate 1,540.00)"])
   assertBool "rate" (hasLine t ["$700.00", "@1,550", "−1,085,000"])
   assertBool "activity" ("3 of 7 days" `T.isInfixOf` t && "2 currencies" `T.isInfixOf` t)
   t80 <- plainText . snd <$> weekRender week44 80 False
@@ -92,3 +92,8 @@ unit_cursor = do
   case vdCursorRow d2 of
     Nothing -> assertFailure "no cursor row on empty day"
     Just r -> assertBool "day label" ("Wed 28" `T.isInfixOf` (T.lines (plainText (vdBody d2)) !! r))
+
+unit_asciiKeys :: Assertion
+unit_asciiKeys = do
+  (d, _) <- weekRender (week44 ++ ["--ascii"]) 140 False
+  assertBool "transaction hint kept" ("transaction" `elem` map snd (vdKeys d))

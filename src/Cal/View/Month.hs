@@ -21,10 +21,6 @@ import Cal.Theme (Role (..))
 import Cal.Types
 import Cal.View.Chrome
 import Cal.View.Types
-import Cal.View.Year (dim, plain, spaces)
-
-segsW :: [Seg] -> Int
-segsW ss = sum [ textW t | Seg _ t <- ss ]
 
 blankB :: Block
 blankB = Block 0 [Line []]
@@ -65,13 +61,6 @@ wrapFig g n t
         go cur (y : ys)
           | textW cur + textW sep + textW y <= n = go (cur <> sep <> y) ys
           | otherwise = cur : go y ys
-
--- | Income colour for a leading "+", expense colour for a leading minus.
-signStyle :: Glyphs -> Text -> Style
-signStyle g t
-  | "+" `T.isPrefixOf` t = st RInc
-  | gMinus g `T.isPrefixOf` t = st RExp
-  | otherwise = plain
 
 plural :: Int -> Text -> Text -> Text
 plural n one many = T.pack (show n) <> " " <> (if n == 1 then one else many)
@@ -223,17 +212,10 @@ monthDoc ctx m = ViewDoc
           | descNeed + acctMax <= room = descNeed
           | otherwise = max 0 (min descNeed (max (room - acctMax) (room * 2 `div` 5)))
         acctW = max 0 (room - descW)
-        acctSegs sty r =
-          let a = truncEnd g acctW (truncAccount acctW (drAccount r))
-              left = acctW - textW a - 2
-              locSegs = case drLocation r of
-                Just l | left >= 3 -> [Seg dim ("  " <> truncEnd g left l)]
-                _ -> []
-          in Seg sty a : locSegs
         rowLine (desc, r) =
           let sty = if drForecast r then dim else plain
               d = truncEnd g descW desc
-              as = acctSegs sty r
+              as = acctSegs g acctW sty r
               v = valueOf r
           in line $
             [Seg sty d, spaces (descW - textW d + 2)] ++ as ++ [spaces (acctW - segsW as + 2)]

@@ -4,6 +4,7 @@ module Cal.View.Chrome
   ( topChrome
   , card, sub, incomeCard, expensesCard, netCard, fxCard, activityCard
   , cardRow, mixBlock, footerBlock
+  , dim, plain, spaces, segsW, signStyle, acctSegs
   ) where
 
 import Data.List (intersperse)
@@ -17,7 +18,7 @@ import Cal.Doc
 import Cal.Format (Fmt (..), fmtDeltaPct, fmtPct, fmtQty, fmtSigned)
 import Cal.Glyphs (BoxChars (..), Glyphs (..))
 import Cal.Model.Common (Activity (..), FxCause (..), Kpis (..), Mix (..))
-import Cal.Model.Shared (CurrencyBar (..))
+import Cal.Model.Shared (CurrencyBar (..), DetailRow (..))
 import Cal.Theme (Role (..))
 import Cal.Types
 import Cal.Valuation (baseQty)
@@ -28,6 +29,26 @@ import Cal.View.Types
 dim, plain :: Style
 dim = st RDim
 plain = st RText
+
+spaces :: Int -> Seg
+spaces n = Seg plain (T.replicate (max 0 n) " ")
+
+-- | Income colour for a leading "+", expense colour for a leading minus.
+signStyle :: Glyphs -> Text -> Style
+signStyle g t
+  | "+" `T.isPrefixOf` t = st RInc
+  | gMinus g `T.isPrefixOf` t = st RExp
+  | otherwise = plain
+
+-- | A detail row's account (elided to @w@ columns) followed by its dim location when it fits.
+acctSegs :: Glyphs -> Int -> Style -> DetailRow -> [Seg]
+acctSegs g w sty r =
+  let a = truncEnd g w (truncAccount w (drAccount r))
+      left = w - textW a - 2
+      locSegs = case drLocation r of
+        Just l | left >= 3 -> [Seg dim ("  " <> truncEnd g left l)]
+        _ -> []
+  in Seg sty a : locSegs
 
 segsW :: [Seg] -> Int
 segsW ss = sum [textW t | Seg _ t <- ss]

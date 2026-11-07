@@ -20,17 +20,6 @@ import Cal.Theme (Role (..))
 import Cal.Types
 import Cal.View.Chrome
 import Cal.View.Types
-import Cal.View.Year (dim, plain, spaces)
-
-segsW :: [Seg] -> Int
-segsW ss = sum [ textW t | Seg _ t <- ss ]
-
--- | Income colour for a leading "+", expense colour for a leading minus.
-signStyle :: Glyphs -> Text -> Style
-signStyle g t
-  | "+" `T.isPrefixOf` t = st RInc
-  | gMinus g `T.isPrefixOf` t = st RExp
-  | otherwise = plain
 
 -- | Title: @Week 44  26 Oct – 1 Nov 2026@; both years when the week spans two.
 weekTitle :: Glyphs -> WeekModel -> Text
@@ -103,15 +92,8 @@ weekDoc ctx m = ViewDoc
     acctNeed r = textW (drAccount r) + maybe 0 (\l -> 2 + textW l) (drLocation r)
     acctW = max 8 (min (colW acctNeed) (w - indent - natW - rateW - valW - 6))
 
-    acctSegs r =
-      let a = truncEnd g acctW (truncAccount acctW (drAccount r))
-          left = acctW - textW a - 2
-          locSegs = case drLocation r of
-            Just l | left >= 3 -> [Seg dim ("  " <> truncEnd g left l)]
-            _ -> []
-      in Seg plain a : locSegs
     rowLine r =
-      let as = acctSegs r
+      let as = acctSegs g acctW plain r
           v = valueOf r
       in [spaces indent] ++ as ++ [spaces (acctW - segsW as + 2)]
          ++ [spaces (natW - textW (nativeOf r)), Seg dim (nativeOf r), spaces 2]
@@ -151,6 +133,6 @@ weekDoc ctx m = ViewDoc
 
     -- * Footer
     keys
-      | ascii = [("arrows", "day"), ("[ ]", "week"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
+      | ascii = [("arrows", "day"), ("up/down", "transaction"), ("[ ]", "week"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
       | otherwise = [("←→", "day"), ("↑↓", "transaction"), ("[ ]", "week"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
     legend = line [Seg dim ("bar = day's spend" <> gSep g <> "grey = native amount @ rate")]

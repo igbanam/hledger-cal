@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | The Year face: four quarter groups of month rows. Pure.
-module Cal.View.Year (yearDoc, monthRowBlocks, dim, plain, spaces) where
+module Cal.View.Year (yearDoc, monthRowBlocks) where
 
 import Data.List (intersperse)
 import Data.Text (Text)
@@ -18,13 +18,6 @@ import Cal.Theme (Role (..))
 import Cal.Types
 import Cal.View.Chrome
 import Cal.View.Types
-
-dim, plain :: Style
-dim = st RDim
-plain = st RText
-
-spaces :: Int -> Seg
-spaces n = Seg plain (T.replicate (max 0 n) " ")
 
 padSeg :: Int -> Seg -> [Seg]
 padSeg n sg@(Seg _ t) = [sg, spaces (n - textW t)]

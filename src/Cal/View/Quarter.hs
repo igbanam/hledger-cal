@@ -16,7 +16,7 @@ import Cal.Theme (Role (..))
 import Cal.Types
 import Cal.View.Chrome
 import Cal.View.Types
-import Cal.View.Year (dim, monthRowBlocks, plain, spaces)
+import Cal.View.Year (monthRowBlocks)
 
 quarterDoc :: RenderCtx -> QuarterModel -> ViewDoc
 quarterDoc ctx m = ViewDoc
@@ -101,7 +101,6 @@ quarterDoc ctx m = ViewDoc
           [ hcat 0 [vcat [str dim "in  ", str dim "    "], mixBlock ctx KIncome (iw - 4) mx] | Just mx <- [kIncomeMix (qcKpis c)] ]
           ++ [ hcat 0 [vcat [str dim "out ", str dim "    "], mixBlock ctx KExpense (iw - 4) mx] | Just mx <- [kExpenseMix (qcKpis c)] ]
 
-    segsW ss = sum [ textW t | Seg _ t <- ss ]
 
     -- year-to-date strip
     strip = boxed g Nothing w (hcat 0 [str plain " ", padTo (w - 4) (vcat stripLines)])
