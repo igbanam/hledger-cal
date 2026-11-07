@@ -222,8 +222,9 @@ enter now us = case sFace s of
          [] -> us
       where
         ok m c = case sValuation s of
-          Native -> False
-          ValuedIn b -> c == b || isJust (rateOn (envPrices env) c b (cmHeldAt m))
+          Native -> priced m (sDefaultBase s) c
+          ValuedIn b -> priced m b c
+        priced m b c = c == b || isJust (rateOn (envPrices env) c b (cmHeldAt m))
   where
     env = usEnv us
     s = settingsOf us

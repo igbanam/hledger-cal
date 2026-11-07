@@ -1,13 +1,16 @@
 module Cal.TuiStateTest where
 
+import Cal.Journal (journalDataRange)
 import Cal.Model.Common (Env (..))
+import Cal.Model.Commodities (CommodityRow (..), CommoditiesModel (..), commoditiesModel)
 import Cal.Tui.State
 import Cal.Types
 import Data.Maybe (isJust)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime)
 import qualified Graphics.Vty as Vty
-import Support (edgePath, envFor, fixtureToday)
+import Hledger.Query (Query (Any))
+import Support (edgePath, envFor, fixtureToday, loadFixture)
 import Test.Tasty.HUnit
 
 d :: Integer -> Int -> Int -> Day
@@ -95,3 +98,49 @@ unit_keys :: IO ()
 unit_keys =
   (keyCmd PaneNone (Vty.KChar 'Y') [], keyCmd PaneNone (Vty.KChar ']') [], keyCmd (PaneFilter "") (Vty.KChar 'q') [])
     @?= (Just (CmdFace FaceYear), Just (CmdPeriod 1), Just (CmdFilterChar 'q'))
+
+-- Native-mode "value in this" (controller ruling).
+unit_commNativePriced :: IO ()
+unit_commNativePriced = do
+  c <- mk ["--commodities", "-p", "2026-10"]
+  let rowsOf u = let m = commoditiesModel (usEnv u) (usCursor u) in cmCurrencies m ++ cmSecurities m
+      n = c { usEnv = (usEnv c) { envSettings = (envSettings (usEnv c)) { sValuation = Native } } }
+      priced = [crCommodity r | r <- rowsOf c, not (crIsBase r), crPrice r /= Nothing]
+      idx = [i | (i, r) <- zip [0 ..] (rowsOf n), crCommodity r `elem` take 1 priced]
+  case (idx, priced) of
+    (i : _, p : _) -> do
+      let s = run n [CmdMove 0 i, CmdEnter]
+      (usMessage s, sValuation (st s)) @?= (Nothing, ValuedIn p)
+    _ -> assertFailure "fixture has no priced non-base row"
+
+unit_commNativeUnpriced :: IO ()
+unit_commNativeUnpriced = do
+  c <- mk ["--commodities", "-p", "2026-10", "-f", edgePath]
+  let n = c { usEnv = (usEnv c) { envSettings = (envSettings (usEnv c)) { sValuation = Native } } }
+      s = run n [CmdMove 0 1, CmdEnter]
+  (fmap fst (usMessage s), sValuation (st s)) @?= (Just "no price for BTC", Native)
+
+unit_filterEmptyClears :: IO ()
+unit_filterEmptyClears = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let s = run s0 (CmdFilterOpen : map CmdFilterChar "acct:fuel" ++ [CmdFilterSubmit, CmdFilterOpen] ++ replicate 9 CmdFilterBackspace ++ [CmdFilterSubmit])
+  (sQueryArgs (st s), sQuery (st s), usPane s) @?= ([], Any, PaneNone)
+
+unit_reloadRecomputesRange :: IO ()
+unit_reloadRecomputesRange = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  j <- loadFixture edgePath
+  let s = applyReload t0 (Right j) s0
+  sDataRange (st s) @?= journalDataRange (sToday (st s)) j
+
+unit_nativeCycleToFirst :: IO ()
+unit_nativeCycleToFirst = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let n = s0 { usEnv = (usEnv s0) { envSettings = (envSettings (usEnv s0)) { sValuation = Native } } }
+  sValuation (st (run n [CmdCycleCurrency])) @?= ValuedIn "₦"
+
+unit_escNothing :: IO ()
+unit_escNothing = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let s = run s0 [CmdEsc]
+  (usPane s, usBack s, focus s) @?= (PaneNone, [], d 2026 10 1)
