@@ -1,5 +1,5 @@
 -- | The register pane (§10.3): one day's postings with a running total.
-module Cal.View.Register (registerPane) where
+module Cal.View.Register (registerPane, registerVisibleRows) where
 
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -14,6 +14,11 @@ import Cal.Model.Register (RegisterRow (..))
 import Cal.Types
 import Cal.View.Chrome (colW, dim, plain, signStyle, spaces)
 import Cal.View.Types
+
+-- | Posting rows that fit in a pane of the given height (title, border and
+-- footer take the other three lines).
+registerVisibleRows :: Int -> Int
+registerVisibleRows height = max 0 (height - 3)
 
 -- | @registerPane ctx day height scroll rows@: a box of exactly @height@ lines.
 registerPane :: RenderCtx -> Day -> Int -> Int -> [RegisterRow] -> Block
@@ -60,7 +65,7 @@ registerPane ctx day height scroll rows = Block w (take height (bLines boxedB ++
     acctW = min avail (max (min acctNat 8) (min acctNat (avail - descNat)))
     descW = max 0 (min descNat (avail - acctW))
 
-    visible = max 0 (height - 3)
+    visible = registerVisibleRows height
     shown = take visible (drop (max 0 scroll) rows)
 
     trunc k t = if k <= 0 then "" else truncEnd g k t

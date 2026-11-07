@@ -9,6 +9,7 @@ module Cal.Tui.State
   , step
   , applyReload
   , visibleMessage
+  , errorSummary
   ) where
 
 import Cal.Currency (codeOf)
@@ -20,7 +21,8 @@ import Cal.Model.Week (WeekDay (..), WeekModel (..), weekModel)
 import Cal.Period (clampFocus, quarterOf, stepFocus)
 import Cal.Prices (rateOn)
 import Cal.Types
-import Data.List (elemIndex)
+import Data.Char (isDigit, isSpace)
+import Data.List (elemIndex, isSuffixOf)
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -29,8 +31,10 @@ import Data.Time.Clock (UTCTime, diffUTCTime)
 import Graphics.Vty (Key (..), Modifier (..))
 import Hledger.Data.Types (Journal)
 import Hledger.Query (parseQuery, Query (Any))
+import System.FilePath (takeFileName)
 
-data Pane = PaneNone | PaneRegister !Int | PaneFilter !Text | PaneHelp
+-- | 'PaneFilter' carries the draft and the pane to return to on Enter/Esc.
+data Pane = PaneNone | PaneRegister !Int | PaneFilter !Text !Pane | PaneHelp
   deriving (Eq, Show)
 
 data UiState = UiState
@@ -75,7 +79,7 @@ keyCmd pane key mods = case pane of
     KChar '?' -> Just CmdHelp
     KChar 'q' -> Just CmdQuit
     _ -> Nothing
-  PaneFilter _ -> case key of
+  PaneFilter _ _ -> case key of
     KChar ch | MCtrl `notElem` mods, MAlt `notElem` mods, ch /= '\t' -> Just (CmdFilterChar ch)
     KBS -> Just CmdFilterBackspace
     KEnter -> Just CmdFilterSubmit
@@ -88,6 +92,9 @@ keyCmd pane key mods = case pane of
     KPageDown -> Just (CmdScroll 10)
     KHome -> Just (CmdScrollEdge True)
     KEnd -> Just (CmdScrollEdge False)
+    KChar 'c' -> Just CmdCycleCurrency
+    KChar 'v' -> Just CmdCycleRate
+    KChar '/' -> Just CmdFilterOpen
     KEnter -> Just CmdEsc
     KEsc -> Just CmdEsc
     _ -> Nothing
@@ -147,12 +154,13 @@ step now cmd us = case cmd of
     PaneNone -> case usBack us of
       ((f, d) : rest) -> (withSettings (\st -> st { sFace = f, sFocus = d }) us) { usBack = rest }
       [] -> us
+    PaneFilter _ ret -> us { usPane = ret }
     _ -> us { usPane = PaneNone }
-  CmdFilterOpen -> done us { usPane = PaneFilter (T.unwords (sQueryArgs s)) }
+  CmdFilterOpen -> done us { usPane = PaneFilter (T.unwords (sQueryArgs s)) returnTo }
   CmdFilterChar c -> done (onDraft (`T.snoc` c) us)
   CmdFilterBackspace -> done (onDraft (\t -> if T.null t then t else T.init t) us)
   CmdFilterSubmit -> done $ case usPane us of
-    PaneFilter draft -> (submitFilter now draft us) { usPane = PaneNone }
+    PaneFilter draft ret -> (submitFilter now draft us) { usPane = afterSubmit ret }
     _ -> us
   CmdHelp -> done us { usPane = PaneHelp }
   CmdScroll n -> done $ case usPane us of
@@ -163,10 +171,16 @@ step now cmd us = case cmd of
     _ -> us
   where
     s = settingsOf us
+    returnTo = case usPane us of
+      PaneRegister i -> PaneRegister i
+      _ -> PaneNone
+    afterSubmit ret = case ret of
+      PaneRegister _ -> PaneRegister 0
+      p -> p
 
 onDraft :: (Text -> Text) -> UiState -> UiState
 onDraft f us = case usPane us of
-  PaneFilter t -> us { usPane = PaneFilter (f t) }
+  PaneFilter t ret -> us { usPane = PaneFilter (f t) ret }
   _ -> us
 
 submitFilter :: UTCTime -> Text -> UiState -> UiState
@@ -174,10 +188,23 @@ submitFilter now draft us
   | T.null (T.strip draft) = withSettings (\st -> st { sQuery = Any, sQueryArgs = [] }) us
   | otherwise = case parseQuery (sToday (settingsOf us)) draft of
       Right (q, _) -> withSettings (\st -> st { sQuery = q, sQueryArgs = map T.pack (words (T.unpack draft)) }) us
-      Left err -> message now (T.pack (firstLine err)) us
+      Left err -> message now (errorSummary err) us
 
-firstLine :: String -> String
-firstLine = takeWhile (/= '\n')
+-- | One footer line from a (possibly multi-line) hledger error: a leading
+-- @path:pos:@ location is shortened to the file name and followed by the
+-- first line of text after it, skipping blank and source-excerpt (@|@) lines.
+errorSummary :: String -> Text
+errorSummary err = case lines err of
+  [] -> ""
+  (l : ls) -> T.strip . T.pack $ case filter (\x -> not (blank x || excerpt x)) ls of
+    (m : _) | isLocation l -> takeFileName (trim l) ++ " " ++ trim m
+            | otherwise -> trim l
+    [] -> trim l
+  where
+    trim = dropWhile isSpace . reverse . dropWhile isSpace . reverse
+    blank = all isSpace
+    excerpt x = take 1 (dropWhile (\c -> isSpace c || isDigit c) x) == "|"
+    isLocation x = ":" `isSuffixOf` trim x
 
 move :: Int -> Int -> UiState -> UiState
 move dx dy us = case sFace s of
@@ -242,7 +269,7 @@ enter now us = case sFace s of
 -- | Rebuild after a journal reload.
 applyReload :: UTCTime -> Either String Journal -> UiState -> UiState
 applyReload now r us = case r of
-  Left err -> message now (T.pack (firstLine err)) us
+  Left err -> message now (errorSummary err) us
   Right j ->
     let s = settingsOf us
         range = journalDataRange (sToday s) j

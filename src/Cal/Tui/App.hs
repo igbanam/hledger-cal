@@ -6,10 +6,11 @@ module Cal.Tui.App
   , calAttrMap
   , attrMapFor
   , styleAttr
+  , clampRegisterScroll
   ) where
 
 import Control.Concurrent (forkIO, threadDelay)
-import Control.Exception (SomeException, displayException, try)
+import Control.Exception (SomeAsyncException, displayException, fromException, throwIO, try)
 import Control.Monad (forever, void)
 import Control.Monad.IO.Class (liftIO)
 import Data.Char (toLower)
@@ -36,7 +37,7 @@ import Cal.Tui.State
 import Cal.Types (ColorMode (..), GlyphSet (..), Settings (..))
 import Cal.View (faceDoc)
 import Cal.View.Chrome (footerBlock)
-import Cal.View.Register (registerPane)
+import Cal.View.Register (registerPane, registerVisibleRows)
 import Cal.View.Types (RenderCtx (..), ViewDoc (..), mkRenderCtx)
 
 data Name = BodyViewport deriving (Eq, Ord, Show)
@@ -119,7 +120,7 @@ layout now us w h = do
       cut = length bl - length fl
       rest = if cut >= 0 && drop cut bl == fl then (vdBottom doc) { bLines = take cut bl } else vdBottom doc
       footer = case usPane us of
-        PaneFilter draft -> line [Seg (st RDim) "/ ", Seg (st RText) draft, Seg (st RCursor) cursorGlyph]
+        PaneFilter draft _ -> line [Seg (st RDim) "/ ", Seg (st RText) draft, Seg (st RCursor) cursorGlyph]
         _ -> keysFooter
       topH = length (bLines (vdTop doc))
       regH = max 4 (h - topH - 1 - length (bLines footer))
@@ -133,11 +134,12 @@ layout now us w h = do
 -- | Keep the register scroll offset within its rows.
 clampScroll :: Layout -> UiState -> UiState
 clampScroll ly us = case usPane us of
-  PaneRegister i ->
-    let visibleRows = max 0 (lyRegHeight ly - 3)
-        top = max 0 (length (lyRegRows ly) - visibleRows)
-    in us { usPane = PaneRegister (max 0 (min top i)) }
+  PaneRegister i -> us { usPane = PaneRegister (clampRegisterScroll (lyRegHeight ly) (length (lyRegRows ly)) i) }
   _ -> us
+
+-- | @clampRegisterScroll height rowCount scroll@: 0 .. rows that don't fit.
+clampRegisterScroll :: Int -> Int -> Int -> Int
+clampRegisterScroll height n i = max 0 (min (max 0 (n - registerVisibleRows height)) i)
 
 draw :: AppState -> [Widget Name]
 draw (AppState us now) = [helpLayer | usPane us == PaneHelp] ++ [screen]
@@ -187,15 +189,17 @@ settle now us = do
   (w, h) <- displaySize
   put (AppState (maybe us (`clampScroll` us) (layout now us w h)) now)
 
-reloadJournal :: InputOpts -> FilePath -> IO (Either String Journal)
-reloadJournal opts file = do
-  r <- try (loadJournal opts [file])
-  pure $ case r of
-    Left e -> Left (displayException (e :: SomeException))
-    Right x -> x
+-- | Reload; synchronous exceptions become an error message, async ones are rethrown.
+reloadJournal :: InputOpts -> [FilePath] -> IO (Either String Journal)
+reloadJournal opts files = do
+  r <- try (loadJournal opts files)
+  case r of
+    Left e | Just (_ :: SomeAsyncException) <- fromException e -> throwIO e
+           | otherwise -> pure (Left (displayException e))
+    Right x -> pure x
 
-handleEvent :: InputOpts -> BrickEvent Name Tick -> EventM Name AppState ()
-handleEvent opts ev = do
+handleEvent :: InputOpts -> [FilePath] -> BrickEvent Name Tick -> EventM Name AppState ()
+handleEvent opts files ev = do
   now <- liftIO getCurrentTime
   AppState us _ <- get
   case ev of
@@ -206,27 +210,28 @@ handleEvent opts ev = do
       Just cmd -> case step now cmd us of
         (_, EffQuit) -> halt
         (us', EffReload) -> do
-          r <- liftIO (reloadJournal opts (sJournalFile (envSettings (usEnv us'))))
+          r <- liftIO (reloadJournal opts files)
           settle now (applyReload now r us')
         (us', EffNone) -> settle now us'
     VtyEvent (Vty.EvResize _ _) -> settle now us
     _ -> pure ()
 
-app :: InputOpts -> ColorMode -> App AppState Tick Name
-app opts cm = App
+app :: InputOpts -> [FilePath] -> ColorMode -> App AppState Tick Name
+app opts files cm = App
   { appDraw = draw
   , appChooseCursor = neverShowCursor
-  , appHandleEvent = handleEvent opts
+  , appHandleEvent = handleEvent opts files
   , appStartEvent = pure ()
   , appAttrMap = const (attrMapFor cm)
   }
 
--- | Run the interactive calendar; @opts@ are reused for @g@ (reload).
-runTui :: InputOpts -> Env -> IO ()
-runTui opts env = do
+-- | Run the interactive calendar; @opts@ and @files@ (every @-f@, as at
+-- startup) are reused for @g@ (reload).
+runTui :: InputOpts -> [FilePath] -> Env -> IO ()
+runTui opts files env = do
   chan <- newBChan 10
   void $ forkIO $ forever $ writeBChan chan Tick >> threadDelay 500000
   now <- getCurrentTime
   let build = mkVty Vty.defaultConfig
   vty <- build
-  void $ customMain vty build (Just chan) (app opts (sColor (envSettings env))) (AppState (initState env) now)
+  void $ customMain vty build (Just chan) (app opts files (sColor (envSettings env))) (AppState (initState env) now)

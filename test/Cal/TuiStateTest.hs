@@ -7,7 +7,7 @@ import Cal.Journal (journalDataRange)
 import Cal.Model.Common (Env (..))
 import Cal.Model.Commodities (CommodityRow (..), CommoditiesModel (..), commoditiesModel)
 import Cal.Theme (Role (..))
-import Cal.Tui.App (blockWidget, calAttrMap, styleAttr)
+import Cal.Tui.App (blockWidget, calAttrMap, clampRegisterScroll, styleAttr)
 import Cal.Tui.State
 import Cal.Types
 import Data.Maybe (isJust)
@@ -103,7 +103,7 @@ unit_commNoPrice = do
 
 unit_keys :: IO ()
 unit_keys =
-  (keyCmd PaneNone (Vty.KChar 'Y') [], keyCmd PaneNone (Vty.KChar ']') [], keyCmd (PaneFilter "") (Vty.KChar 'q') [])
+  (keyCmd PaneNone (Vty.KChar 'Y') [], keyCmd PaneNone (Vty.KChar ']') [], keyCmd (PaneFilter "" PaneNone) (Vty.KChar 'q') [])
     @?= (Just (CmdFace FaceYear), Just (CmdPeriod 1), Just (CmdFilterChar 'q'))
 
 -- Native-mode "value in this" (controller ruling).
@@ -168,3 +168,34 @@ unit_attrMapCoversRoles = do
       expected = attrMapLookup (styleAttr style) calAttrMap
   assertBool "attr name is defined in calAttrMap" (expected /= Vty.defAttr)
   concatMap (attrsOf "x") (Vty.picLayers pic) @?= [expected]
+
+unit_registerCycleCurrency :: IO ()
+unit_registerCycleCurrency = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let r = run s0 [CmdEnter]
+  cmd <- maybe (assertFailure "c unmapped in register") pure (keyCmd (usPane r) (Vty.KChar 'c') [])
+  let s = run r [cmd]
+  (usPane r, usPane s, sValuation (st s) /= sValuation (st r)) @?= (PaneRegister 0, PaneRegister 0, True)
+
+unit_registerFilterReturns :: IO ()
+unit_registerFilterReturns = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let r = run s0 [CmdEnter, CmdScroll 2]
+      press u k = maybe u (\c -> fst (step t0 c u)) (keyCmd (usPane u) k [])
+      s = foldl press r ([Vty.KChar '/'] ++ map Vty.KChar "acct:fuel" ++ [Vty.KEnter])
+      e = run r [CmdFilterOpen, CmdFilterChar 'x', CmdEsc]
+  (usPane s, sQueryArgs (st s), usPane e) @?= (PaneRegister 0, ["acct:fuel"], PaneRegister 2)
+
+unit_reloadErrorKeepsParseText :: IO ()
+unit_reloadErrorKeepsParseText = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let err = "/tmp/x/j.journal:284:1:\n    |\n284 | bad line\n    | ^\nunexpected 't'\nexpecting end of input\n"
+      s = applyReload t0 (Left err) s0
+  fmap fst (usMessage s) @?= Just "j.journal:284:1: unexpected 't'"
+  focus s @?= focus s0
+
+unit_clampRegisterScroll :: IO ()
+unit_clampRegisterScroll =
+  -- height 10 shows 7 rows; 12 rows can scroll by at most 5
+  (clampRegisterScroll 10 12 1000000, clampRegisterScroll 10 12 3, clampRegisterScroll 10 4 9, clampRegisterScroll 10 12 (-2))
+    @?= (5, 3, 0, 0)

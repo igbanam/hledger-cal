@@ -9,7 +9,7 @@ module Cal.Journal
   ) where
 
 import Cal.Types (Kind (..))
-import Control.Exception (SomeException, displayException, try)
+import Control.Exception (SomeAsyncException, SomeException, displayException, fromException, throwIO, try)
 import Data.Maybe (listToMaybe)
 import Data.Text (Text)
 import Data.Time.Calendar (Day)
@@ -20,9 +20,10 @@ import Hledger
 loadJournal :: InputOpts -> [FilePath] -> IO (Either String Journal)
 loadJournal iopts files = do
   r <- try (runExceptT (readJournalFiles iopts files))
-  pure $ case r of
-    Left e -> Left (displayException (e :: SomeException))
-    Right x -> x
+  case r of
+    Left e | Just (_ :: SomeAsyncException) <- fromException e -> throwIO e
+           | otherwise -> pure (Left (displayException (e :: SomeException)))
+    Right x -> pure x
 
 -- | Revenue accounts are income, Expense accounts are expenses, all else is ignored.
 postingKind :: Journal -> Posting -> Maybe Kind

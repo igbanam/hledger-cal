@@ -43,6 +43,6 @@ main = do
         Right out -> hSetEncoding stdout utf8 >> T.putStrLn out
   case sOutput s of
     OutPrint w -> printAt w
-    OutTui -> runTui (inputopts_ opts) env
+    OutTui -> runTui (inputopts_ opts) (file_ opts) env
   where
     die' err = hSetEncoding stderr utf8 >> hPutStrLn stderr err >> exitWith (ExitFailure 1)
