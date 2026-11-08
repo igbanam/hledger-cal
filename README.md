@@ -58,20 +58,20 @@ disable color; `--ascii` forces the ASCII glyph set.
 
 ## Keys
 
-| Key | Action |
-|---|---|
-| `Y` `Q` `M` `W` `C` | Year, Quarter, Month, Week, Commodities view (they mirror `-Y -Q -M -W --commodities`) |
-| `Tab` / `Shift-Tab` | Cycle views forward / back |
-| `[` `]` | Previous / next period |
-| `c` | Cycle the valued-in currency (base, ..., native) |
-| `v` | Cycle rates at: period end, txn date, today |
-| `/` | Edit the account/query filter (`Esc` cancels, empty clears) |
-| `Enter` | Year/Quarter: drill down. Month/Week: register pane for the cursor day. Commodities: value in the selected commodity |
-| `Esc` | Close the open pane (register, filter prompt, help); otherwise return from a drill-down |
-| Arrow keys | Move the cursor (Month/Week day, Year month, Quarter quarter, Commodities row) |
-| `g` | Reload the journal from disk, keeping view, focus, currency and filter |
-| `?` | Help overlay listing every key for the current view |
-| `q` | Quit |
+| Key                 | Action                                                                                                               |
+| ---                 | ---                                                                                                                  |
+| `Y` `Q` `M` `W` `C` | Year, Quarter, Month, Week, Commodities view (they mirror `-Y -Q -M -W --commodities`)                               |
+| `Tab` / `Shift-Tab` | Cycle views forward / back                                                                                           |
+| `[` `]`             | Previous / next period                                                                                               |
+| `c`                 | Cycle the valued-in currency (base, ..., native)                                                                     |
+| `v`                 | Cycle rates at: period end, txn date, today                                                                          |
+| `/`                 | Edit the account/query filter (`Esc` cancels, empty clears)                                                          |
+| `Enter`             | Year/Quarter: drill down. Month/Week: register pane for the cursor day. Commodities: value in the selected commodity |
+| `Esc`               | Close the open pane (register, filter prompt, help); otherwise return from a drill-down                              |
+| Arrow keys (& hjkl) | Move the cursor (Month/Week day, Year month, Quarter quarter, Commodities row)                                       |
+| `g`                 | Reload the journal from disk, keeping view, focus, currency and filter                                               |
+| `?`                 | Help overlay listing every key for the current view                                                                  |
+| `q`                 | Quit                                                                                                                 |
 
 Register pane: `Up`/`Down`/`PgUp`/`PgDn`/`Home`/`End` scroll; `Esc` or `Enter`
 closes it.

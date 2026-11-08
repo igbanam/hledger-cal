@@ -72,6 +72,10 @@ keyCmd pane key mods = case pane of
     KBackTab -> Just (CmdCycleFace (-1))
     KChar 'c' -> Just CmdCycleCurrency
     KChar 'v' -> Just CmdCycleRate
+    KChar 'h' -> Just (CmdMove (-1) 0)
+    KChar 'l' -> Just (CmdMove 1 0)
+    KChar 'k' -> Just (CmdMove 0 (-1))
+    KChar 'j' -> Just (CmdMove 0 1)
     KLeft -> Just (CmdMove (-1) 0)
     KRight -> Just (CmdMove 1 0)
     KUp -> Just (CmdMove 0 (-1))
