@@ -96,3 +96,14 @@ unit_sparkStale = do
   fmap (map (fmap (const ())) . crSpark) (row "Dh" c)
     @?= Just (replicate 2 Nothing ++ replicate 7 (Just ()) ++ replicate 3 Nothing)
   fmap crValue (row "Dh" c) @?= Just (Just 211000)
+
+-- | A unit: tag on a security declared in an included file applies, at
+-- any include depth (WIDGET one level down, GADGET two), and with several
+-- -f files.
+unit_unitsIncluded :: Assertion
+unit_unitsIncluded = do
+  let units args = (\c -> [ (crCommodity r, crUnit r) | r <- cmSecurities c ]) . (`commoditiesModel` defaultCursor)
+        <$> envFor (["--commodities", "-p", "2026-10"] ++ args)
+      mainJ = "test/fixtures/include-main.journal"
+  units ["-f", mainJ] >>= (@?= [("GADGET", Just "box"), ("WIDGET", Just "crate")])
+  units ["-f", "test/fixtures/multi-a.journal", "-f", mainJ] >>= (@?= [("GADGET", Just "box"), ("WIDGET", Just "crate")])

@@ -1,0 +1,18 @@
+; A journal whose currency and security declarations live in included
+; files: include-commodities.journal, which includes include-deep.journal.
+include include-commodities.journal
+
+D ₦1,000.
+account assets:bank       ; type: C
+account assets:brokerage  ; type: C
+account income            ; type: R
+account expenses          ; type: X
+
+2026-10-02 Payroll
+    income:salary         ₦-500,000
+    assets:bank
+
+2026-10-10 Buy
+    assets:brokerage      3.000 WIDGET @ ₦1,000
+    assets:brokerage      2 GADGET @ ₦5,000
+    assets:bank

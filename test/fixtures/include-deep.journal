@@ -1,0 +1,6 @@
+; Included by include-commodities.journal (a second-level include): the
+; same three kinds of declaration.
+commodity 1,000 ISK
+commodity 1. GADGET  ; unit: box
+
+P 2026-10-01 DKK ₦230

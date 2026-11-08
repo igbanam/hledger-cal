@@ -1,0 +1,8 @@
+; Included by include-main.journal: a currency declared but never posted,
+; a currency seen only in a P directive, and a security's unit: tag.
+include include-deep.journal
+
+commodity 1,000.00 CAD
+commodity 1.000 WIDGET  ; unit: crate
+
+P 2026-10-01 SEK ₦150

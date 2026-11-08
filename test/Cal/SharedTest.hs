@@ -120,3 +120,14 @@ unit_currencyChoicesUndeclared :: Assertion
 unit_currencyChoicesUndeclared = do
   env <- envFor ["-M", "-p", "2026-10", "-f", "test/fixtures/undeclared.journal"]
   currencyChoices env @?= ["₦", "GBP", "£", "¥", "CHF", "CAD"]
+
+-- | Currencies declared or priced only in included files are choices, at
+-- any include depth (CAD and SEK one level down, ISK and DKK two), and
+-- still when the including file is one of several -f files.
+unit_currencyChoicesIncluded :: Assertion
+unit_currencyChoicesIncluded = do
+  let mainJ = "test/fixtures/include-main.journal"
+  single <- envFor ["-M", "-p", "2026-10", "-f", mainJ]
+  currencyChoices single @?= ["₦", "DKK", "SEK", "CAD", "ISK"]
+  several <- envFor ["-M", "-p", "2026-10", "-f", "test/fixtures/multi-a.journal", "-f", mainJ]
+  currencyChoices several @?= ["₦", "DKK", "SEK", "CAD", "ISK"]
