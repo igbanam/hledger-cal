@@ -11,6 +11,9 @@ module Cal.Tui.App
   , cursorSpan
   , ScreenRows (..)
   , screenRows
+  , AppState
+  , appStateFor
+  , draw
   ) where
 
 import Control.Concurrent (forkIO, threadDelay)
@@ -57,6 +60,10 @@ data AppState = AppState !UiState !UTCTime !(Maybe Cache)
 
 -- | A layout and the screen size it was made for (lazy: built on first use).
 data Cache = Cache !(Int, Int) (Maybe Layout)
+
+-- | A fresh app state, with no cached layout.
+appStateFor :: UiState -> UTCTime -> AppState
+appStateFor us now = AppState us now Nothing
 
 -- * Attributes
 
@@ -191,7 +198,7 @@ draw as@(AppState us _ _) = [helpLayer | usPane us == PaneHelp] ++ [screen]
             ctx = lyCtx ly
             bodyLines = bLines (vdBody doc)
             rest = bLines (lyRest ly)
-            ScreenRows room bodyH _ = screenRows h (length (bLines (vdTop doc))) (length bodyLines) (length rest) (length (bLines (lyFooter ly)))
+            ScreenRows room bodyH = screenRows h (length (bLines (vdTop doc))) (length bodyLines) (length rest) (length (bLines (lyFooter ly)))
             -- the viewport follows the cursor: its row and the whole box drawn around it
             body = vLimit bodyH $ viewport BodyViewport Vertical $ vBox $ case cursorSpan (vdCursorRow doc) bodyLines of
               Nothing -> map lineWidget bodyLines
@@ -223,19 +230,17 @@ draw as@(AppState us _ _) = [helpLayer | usPane us == PaneHelp] ++ [screen]
       render $ centerLayer $ borderWithLabel (txt "keys") $ hLimit (max 20 (min 100 (w - 4))) $
         padLeftRight 1 $ vBox ([txtWrap general] ++ [txtWrap faceKeys | not (T.null faceKeys)])
 
--- | Where the main screen's parts go (design S3), for a screen @h@ rows
--- tall: the top chrome and a blank row, the body viewport, a blank row,
--- the panels and a blank row when there are any, then filler, then the
--- footer at the bottom.
+-- | The body's rows on a screen @h@ rows tall (design S3): the top chrome
+-- and a blank row, the body viewport, a blank row, the panels and a blank
+-- row when there are any, filler, then the footer at the bottom.
 data ScreenRows = ScreenRows
   { srRoom :: !Int      -- ^ rows the body may take
   , srBodyH :: !Int     -- ^ rows the body takes
-  , srPanelRow :: !Int  -- ^ the first panel row
   } deriving (Eq, Show)
 
 -- | @screenRows h topH bodyN panelN footerN@.
 screenRows :: Int -> Int -> Int -> Int -> Int -> ScreenRows
-screenRows h topH bodyN panelN footerN = ScreenRows room bodyH (topH + 1 + bodyH + 1)
+screenRows h topH bodyN panelN footerN = ScreenRows room bodyH
   where
     restH = if panelN == 0 then 0 else panelN + 1
     room = max 1 (h - topH - 2 - restH - footerN)

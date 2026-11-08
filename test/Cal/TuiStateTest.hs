@@ -7,13 +7,15 @@ import Cal.Journal (journalDataRange)
 import Cal.Model.Common (Env (..))
 import Cal.Model.Commodities (CommodityRow (..), CommoditiesModel (..), commoditiesModel)
 import Cal.Theme (Role (..))
-import Cal.Tui.App (ScreenRows (..), attrMapFor, bgAttr, blockWidget, calAttrMap, clampRegisterScroll, cursorSpan, screenRows, styleAttr)
+import Cal.Tui.App (appStateFor, attrMapFor, bgAttr, blockWidget, calAttrMap, clampRegisterScroll, cursorSpan, draw, styleAttr)
 import Cal.Model.Month (monthModel)
 import Cal.View.Month (monthDoc)
 import Cal.View.Types (ViewDoc (..), mkRenderCtx)
 import Cal.Tui.State
 import Cal.Types
+import Data.List (isInfixOf)
 import Data.Maybe (isJust)
+import qualified Data.Text as T
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), addUTCTime)
 import qualified Data.Text.Lazy as TL
@@ -277,20 +279,46 @@ unit_cursorSpan = do
   cursorSpan (Just 0) [plainL] @?= Just (0, 0)
   cursorSpan Nothing ls @?= Nothing
 
--- | Design S3: the Month panels start one blank row under the last body
--- line, whether the body fits the screen or scrolls in a shorter viewport.
+-- | The rows of a rendered vty image as plain text (one entry per
+-- character; the fixture's wide characters don't occur in the rows used).
+imageRows :: Image -> [String]
+imageRows img = case img of
+  HorizText _ t _ _ -> [TL.unpack t]
+  HorizJoin l r _ h -> zipWith (++) (padRows h (imageRows l)) (padRows h (imageRows r))
+  VertJoin a b _ _ -> imageRows a ++ imageRows b
+  BGFill w h -> replicate h (replicate w ' ')
+  Crop i left top w h -> take h [ take w (drop left r) | r <- drop top (imageRows i) ]
+  EmptyImage -> []
+  where
+    padRows h rs = take h (rs ++ repeat "")
+
+-- | Design S3: on the real TUI screen, the first Month panel row sits
+-- exactly one blank row under the last body row, whether the body fits the
+-- screen (200×80) or scrolls in a shorter viewport (200×40).
 unit_panelPlacement :: IO ()
 unit_panelPlacement = do
   env <- envFor ["-M", "-p", "2026-10-30"]
   ctx <- maybe (assertFailure "no render context") pure (mkRenderCtx env 200 True)
   let doc = monthDoc ctx (monthModel env)
-      n f = length (Doc.bLines (f doc))
-      (topN, bodyN, panelN) = (n vdTop, n vdBody, n vdBottom)
-      tall = screenRows 80 topN bodyN panelN 2
-      short = screenRows 40 topN bodyN panelN 2
-  srBodyH tall @?= bodyN
-  srPanelRow tall @?= topN + 1 + bodyN + 1
-  assertBool "the short screen scrolls the body" (srBodyH short < bodyN)
-  srPanelRow short @?= topN + 1 + srBodyH short + 1
-  -- the panels and the footer still fit under the short body
-  assertBool "panels fit" (srPanelRow short + panelN + 1 + 2 <= 40)
+      bodyLs = T.lines (Doc.plainText (vdBody doc))
+      topN = length (Doc.bLines (vdTop doc))
+      strip = reverse . dropWhile (== ' ') . reverse
+      check h = do
+        let pic = renderWidget (Just calAttrMap) (draw (appStateFor (initState env) t0)) (200, h)
+            rows = map strip (concatMap imageRows (take 1 (Vty.picLayers pic)))
+            -- the detail and rates panels' top borders, side by side
+            isPanelTop r = "┐  ┌" `isInfixOf` r
+            panelTops = [ i | (i, r) <- zip [0 :: Int ..] rows, i > topN, isPanelTop r ]
+            isBody r = T.pack r `elem` map (T.pack . strip . T.unpack) bodyLs
+        p <- case panelTops of
+          (x : _) -> pure x
+          [] -> assertFailure ("no panel row at height " ++ show h ++ ": " ++ show rows)
+        assertEqual ("blank row above the panels at height " ++ show h) "" (rows !! (p - 1))
+        assertBool ("a body row right above the blank row at height " ++ show h ++ ": " ++ show (rows !! (p - 2))) (isBody (rows !! (p - 2)))
+        pure (p, rows)
+  (pTall, rowsTall) <- check 80
+  -- the whole body fits: its last line is the grid's bottom edge
+  assertEqual "the body ends right above" (T.unpack (T.stripEnd (last bodyLs))) (rowsTall !! (pTall - 2))
+  assertEqual "the body starts one blank row under the top" (pTall - 2 - length bodyLs) topN
+  (pShort, _) <- check 40
+  assertBool "the short screen scrolls the body" (pShort - 2 - topN < length bodyLs)
