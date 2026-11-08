@@ -7,7 +7,7 @@ import Cal.Journal (journalDataRange)
 import Cal.Model.Common (Env (..))
 import Cal.Model.Commodities (CommodityRow (..), CommoditiesModel (..), commoditiesModel)
 import Cal.Theme (Role (..))
-import Cal.Tui.App (attrMapFor, bgAttr, blockWidget, calAttrMap, clampRegisterScroll, styleAttr)
+import Cal.Tui.App (attrMapFor, bgAttr, blockWidget, calAttrMap, clampRegisterScroll, cursorSpan, styleAttr)
 import Cal.Tui.State
 import Cal.Types
 import Data.Maybe (isJust)
@@ -224,3 +224,26 @@ unit_cursorBorderNoColour :: IO ()
 unit_cursorBorderNoColour = do
   let a = attrMapLookup (styleAttr Doc.cursorBorder) (attrMapFor ColorNone)
   (Vty.attrStyle a, Vty.attrForeColor a) @?= (Vty.SetTo Vty.bold, Vty.Default)
+
+-- | Year: with the ≥ 140 grid, ↑/↓ move a quarter row (±3 months) and ←/→
+-- one month; narrower, the rows list keeps ↑/↓ ±1 and ←/→ ±3.
+unit_yearGridMoves :: IO ()
+unit_yearGridMoves = do
+  y <- mk ["-Y"]
+  let grid = y { usWidth = 140 }
+  map focus [run grid [CmdMove 0 (-1)], run grid [CmdMove (-1) 0]] @?= [d 2026 8 6, d 2026 10 6]
+  let rows = y { usWidth = 139 }
+  map focus [run rows [CmdMove 0 (-1)], run rows [CmdMove (-1) 0]] @?= [d 2026 10 6, d 2026 8 6]
+  usWidth y @?= 0
+
+-- | The viewport keeps the whole cursor box in view: the cursor row and
+-- the lines around it that hold the cursor border.
+unit_cursorSpan :: IO ()
+unit_cursorSpan = do
+  let plainL = Doc.Line [Doc.Seg (Doc.st RText) "x"]
+      boxL = Doc.Line [Doc.Seg (Doc.st RText) "x", Doc.Seg Doc.cursorBorder "│"]
+      ls = [plainL, boxL, boxL, boxL, plainL, boxL]
+  cursorSpan (Just 2) ls @?= Just (1, 3)
+  cursorSpan (Just 4) ls @?= Just (4, 4)
+  cursorSpan (Just 0) [plainL] @?= Just (0, 0)
+  cursorSpan Nothing ls @?= Nothing

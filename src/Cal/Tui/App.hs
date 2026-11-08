@@ -8,6 +8,7 @@ module Cal.Tui.App
   , styleAttr
   , bgAttr
   , clampRegisterScroll
+  , cursorSpan
   ) where
 
 import Control.Concurrent (forkIO, threadDelay)
@@ -193,9 +194,13 @@ draw as@(AppState us _ _) = [helpLayer | usPane us == PaneHelp] ++ [screen]
             restH = if null rest then 0 else length rest + 1
             room = max 1 (h - length (bLines (vdTop doc)) - 2 - restH - length (bLines (lyFooter ly)))
             bodyH = min room (length bodyLines)
-            body = vLimit bodyH $ viewport BodyViewport Vertical $ vBox
-              [ if Just i == vdCursorRow doc then visible (lineWidget l) else lineWidget l
-              | (i, l) <- zip [0 ..] bodyLines ]
+            -- the viewport follows the cursor: its row and the whole box drawn around it
+            body = vLimit bodyH $ viewport BodyViewport Vertical $ vBox $ case cursorSpan (vdCursorRow doc) bodyLines of
+              Nothing -> map lineWidget bodyLines
+              Just (lo, hi) ->
+                let (before, rest') = splitAt lo bodyLines
+                    (inside, after) = splitAt (hi - lo + 1) rest'
+                in map lineWidget before ++ [visible (vBox (map lineWidget inside))] ++ map lineWidget after
             filler = blockWidget (Block 0 (replicate (room - bodyH) (Line [])))
             middle = case usPane us of
               PaneRegister scroll ->
@@ -220,6 +225,20 @@ draw as@(AppState us _ _) = [helpLayer | usPane us == PaneHelp] ++ [screen]
       render $ centerLayer $ borderWithLabel (txt "keys") $ hLimit (max 20 (min 100 (w - 4))) $
         padLeftRight 1 $ vBox ([txtWrap general] ++ [txtWrap faceKeys | not (T.null faceKeys)])
 
+-- | The body lines the viewport keeps in view, first and last: the cursor
+-- row and, when it holds the cursor border, the lines on either side of it
+-- that hold it too, so a cursor box (design S4) scrolls into view whole.
+cursorSpan :: Maybe Int -> [Line] -> Maybe (Int, Int)
+cursorSpan Nothing _ = Nothing
+cursorSpan (Just r) ls
+  | has r = Just (lo, hi)
+  | otherwise = Just (r, r)
+  where
+    marked = [ any (\(Seg s _) -> stRole s == RCursorBorder) ss | Line ss <- ls ]
+    has i = i >= 0 && i < length marked && marked !! i
+    lo = last (r : takeWhile has [r - 1, r - 2 .. 0])
+    hi = last (r : takeWhile has [r + 1 .. length marked - 1])
+
 -- * Events
 
 displaySize :: EventM Name AppState (Int, Int)
@@ -232,8 +251,9 @@ displaySize = do
 settle :: UTCTime -> UiState -> EventM Name AppState ()
 settle now us = do
   (w, h) <- displaySize
-  let ly = layout now us w h
-  put (AppState (maybe us (`clampScroll` us) ly) now (Just (Cache (w, h) ly)))
+  let us' = us { usWidth = w }
+      ly = layout now us' w h
+  put (AppState (maybe us' (`clampScroll` us') ly) now (Just (Cache (w, h) ly)))
 
 -- | Reload; synchronous exceptions become an error message, async ones are rethrown.
 reloadJournal :: InputOpts -> [FilePath] -> IO (Either String Journal)

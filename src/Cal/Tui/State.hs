@@ -21,6 +21,7 @@ import Cal.Model.Week (WeekDay (..), WeekModel (..), weekModel)
 import Cal.Period (clampFocus, quarterOf, stepFocus)
 import Cal.Prices (rateOn)
 import Cal.Types
+import Cal.View.Types (Tier (..), tierFor)
 import Data.Char (isDigit, isSpace)
 import Data.List (elemIndex, isSuffixOf)
 import Data.Maybe (isJust)
@@ -37,9 +38,12 @@ import System.FilePath (takeFileName)
 data Pane = PaneNone | PaneRegister !Int | PaneFilter !Text !Pane | PaneHelp
   deriving (Eq, Show)
 
+-- | 'usWidth' is the terminal width the screen was last laid out for (0
+-- before the first layout); cursor moves that depend on the layout tier
+-- read it.
 data UiState = UiState
   { usEnv :: !Env, usCursor :: !Cursor, usPane :: !Pane
-  , usBack :: ![(Face, Day)], usMessage :: !(Maybe (Text, UTCTime)) }
+  , usBack :: ![(Face, Day)], usMessage :: !(Maybe (Text, UTCTime)), usWidth :: !Int }
 
 data Cmd
   = CmdPeriod !Int | CmdFace !Face | CmdCycleFace !Int | CmdCycleCurrency | CmdCycleRate
@@ -52,7 +56,7 @@ data Effect = EffNone | EffQuit | EffReload
   deriving (Eq, Show)
 
 initState :: Env -> UiState
-initState env = UiState env defaultCursor PaneNone [] Nothing
+initState env = UiState env defaultCursor PaneNone [] Nothing 0
 
 keyCmd :: Pane -> Key -> [Modifier] -> Maybe Cmd
 keyCmd pane key mods = case pane of
@@ -209,7 +213,10 @@ errorSummary err = case lines err of
 
 move :: Int -> Int -> UiState -> UiState
 move dx dy us = case sFace s of
-  FaceYear -> refocus (months (3 * dx + dy) focus) us
+  -- the ≥ 140 grid has a quarter per row (design F2); narrower, a month per row
+  FaceYear
+    | tierFor (usWidth us) == Just TierFull -> refocus (months (dx + 3 * dy) focus) us
+    | otherwise -> refocus (months (3 * dx + dy) focus) us
   FaceQuarter -> refocus (months (3 * (dx + 2 * dy)) focus) us
   FaceMonth -> refocus (addDays (fromIntegral (dx + 7 * dy)) focus) us
   FaceWeek
