@@ -1,0 +1,15 @@
+; A weekly periodic transaction for --forecast: Mondays from 2 Nov 2026,
+; so November forecasts 5,000 and December 4,000.
+commodity ₦1,000.
+D ₦1,000.
+
+account assets:bank  ; type: C
+account expenses     ; type: X
+
+2026-10-15 Rent
+    expenses:rent        ₦10,000
+    assets:bank
+
+~ weekly from 2026-11-02  Groceries
+    expenses:food        ₦1,000
+    assets:bank

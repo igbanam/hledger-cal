@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Cal.Cli (mkSettings, parseCli)
+import Cal.Cli (loadInputOpts, mkSettings, parseCli)
 import Cal.Journal (loadJournal)
 import Cal.Model.Common (mkEnv)
 import Cal.Print (renderPrint)
@@ -10,9 +10,9 @@ import Data.Char (toLower)
 import Data.List (isInfixOf)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import Data.Time.LocalTime (getZonedTime, localDay, zonedTimeToLocalTime)
 import Hledger.Cli (CliOpts (..))
 import Hledger.Read.InputOptions (InputOpts)
+import Hledger.Reports.ReportOptions (ReportSpec (..))
 import System.Environment (getArgs, lookupEnv)
 import System.Exit (exitWith, ExitCode (..))
 import System.IO (hIsTerminalDevice, hPutStrLn, hSetEncoding, stderr, stdout, utf8)
@@ -22,7 +22,10 @@ import Text.Read (readMaybe)
 main :: IO ()
 main = do
   opts <- getArgs >>= parseCli
-  loaded <- loadJournal (inputopts_ opts :: InputOpts) (file_ opts)
+  -- today, or hledger's --today
+  let today = _rsDay (reportspec_ opts)
+      iopts = loadInputOpts today opts :: InputOpts
+  loaded <- loadJournal iopts (file_ opts)
   j <- either die' pure loaded
   tty <- hIsTerminalDevice stdout
   enc <- getLocaleEncoding
@@ -35,7 +38,6 @@ main = do
         , tColumns = cols
         , tNoColorEnv = noColor
         , tTrueColor = ct `elem` [Just "truecolor", Just "24bit"] }
-  today <- localDay . zonedTimeToLocalTime <$> getZonedTime
   s <- either die' pure (mkSettings today term opts j)
   let env = mkEnv j s
       printAt w = case renderPrint env w of
@@ -43,6 +45,6 @@ main = do
         Right out -> hSetEncoding stdout utf8 >> T.putStrLn out
   case sOutput s of
     OutPrint w -> printAt w
-    OutTui -> runTui (inputopts_ opts) (file_ opts) env
+    OutTui -> runTui iopts (file_ opts) env
   where
     die' err = hSetEncoding stderr utf8 >> hPutStrLn stderr err >> exitWith (ExitFailure 1)

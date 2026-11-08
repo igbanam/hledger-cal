@@ -18,7 +18,7 @@ baseSettings = Settings
   , sDataRange = (fromGregorian 2026 1 1, fixtureToday)
   , sValuation = ValuedIn "₦", sRateAt = AtPeriodEnd
   , sDefaultBase = "₦", sBaseSource = BaseFromD
-  , sQueryArgs = [], sQuery = Any
+  , sQueryArgs = [], sQuery = Any, sFlagQuery = Any, sFlagArgs = []
   , sToday = fixtureToday, sStaleDays = 30, sForecast = False, sInferPrices = True
   , sJournalFile = designPath, sOutput = OutPrint 140, sGlyphSet = GlyphsUtf8, sColor = ColorNone }
 

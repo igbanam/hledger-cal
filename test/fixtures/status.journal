@@ -1,0 +1,16 @@
+; Status and virtual postings: hledger bal expenses gives 2,200 in all,
+; 1,000 with -C, 1,200 with -U and 1,500 with -R.
+commodity ₦1,000.
+D ₦1,000.
+
+account assets:bank  ; type: C
+account expenses     ; type: X
+
+2026-10-02 * Lunch
+    expenses:food        ₦1,000
+    assets:bank
+
+2026-10-03 Taxi
+    expenses:taxi        ₦500
+    assets:bank
+    (expenses:taxi)      ₦700

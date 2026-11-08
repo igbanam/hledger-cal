@@ -5,6 +5,7 @@ module Cal.Cli
   , parseCli
   , mkSettings
   , commandLine
+  , loadInputOpts
   ) where
 
 import Cal.Journal (firstSeenCommodity, journalDataRange)
@@ -14,7 +15,7 @@ import Control.Applicative ((<|>))
 import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time.Calendar (addDays, toGregorian)
+import Data.Time.Calendar (addDays, addGregorianMonthsClip, addGregorianYearsClip, toGregorian)
 import Data.Time.Calendar.WeekDate (fromWeekDate)
 import Hledger.Cli
   ( CliOpts (..), Mode, YNA (..), argsFlag, flagNone, flagReq, getHledgerCliOpts'
@@ -22,12 +23,12 @@ import Hledger.Cli
 import Hledger.Data.Dates (fromEFDay)
 import Hledger.Data.Period (periodAsDateSpan)
 import Hledger.Data.RawOptions
-  (RawOpts, boolopt, listofstringopt, maybeposintopt, setboolopt, setopt)
+  (RawOpts, boolopt, listofstringopt, maybestringopt, maybeposintopt, setboolopt, setopt)
 import qualified Hledger.Data.Types as H
-import Hledger.Data.Valuation (ValuationType (..))
-import Hledger.Query (parseQueryList)
+import Hledger.Data.Valuation (ConversionOp (..), ValuationType (..))
+import Hledger.Query (filterQuery, queryIsDateOrDate2)
 import Hledger.Read.InputOptions (InputOpts (..))
-import Hledger.Reports.ReportOptions (ReportOpts (..), ReportSpec (..), rawOptsToReportSpec)
+import Hledger.Reports.ReportOptions (ReportOpts (..), ReportSpec (..), queryFromFlags, rawOptsToReportSpec)
 import Safe (headMay, lastMay)
 import System.FilePath (takeFileName)
 
@@ -75,9 +76,19 @@ mkSettings today term opts j = do
   case (native, value) of
     (True, Just _) -> Left "--native can't be combined with -X, -V or --value"
     _ -> pure ()
+  case unsupportedFlags opts ropts of
+    (flag : _) -> Left (flag ++ " has no meaning in hledger cal")
+    [] -> pure ()
   let queryArgs = map T.pack (listofstringopt "args" raw)
-  (query, _) <- parseQueryList today queryArgs
-  let interval = interval_ ropts
+      -- The focus period drives dates, so date terms are dropped; status
+      -- (-U -P -C) and -R stay, as in hledger's own reports.
+      noDates = filterQuery (not . queryIsDateOrDate2)
+      query = noDates (_rsQuery rspec)
+      flagQuery = noDates (queryFromFlags ropts)
+      flagArgs =
+        [ fl | (stt, fl) <- [(H.Unmarked, "-U"), (H.Pending, "-P"), (H.Cleared, "-C")], stt `elem` statuses_ ropts ]
+          ++ ["-R" | real_ ropts]
+      interval = interval_ ropts
       commodities = boolopt "commodities" raw
       -- --commodities wins; its interval then comes from -Y/-Q/-M/-W.
       face
@@ -130,12 +141,47 @@ mkSettings today term opts j = do
     { sFace = face, sCommInterval = commInterval, sFocus = focus, sDataRange = dataRange
     , sValuation = valuation, sRateAt = rateAt
     , sDefaultBase = defaultBase, sBaseSource = baseSource
-    , sQueryArgs = queryArgs, sQuery = query
+    , sQueryArgs = queryArgs, sQuery = query, sFlagQuery = flagQuery, sFlagArgs = flagArgs
     , sToday = today
     , sStaleDays = maybe 30 fromIntegral (maybeposintopt "stale-days" raw)
     , sForecast = isJust (forecast_ (inputopts_ opts))
     , sInferPrices = not (boolopt "no-infer-market-prices" raw)
     , sJournalFile = journalFile, sOutput = output, sGlyphSet = glyphs, sColor = color }
+
+-- | Report flags that have no calendar meaning and would otherwise be
+-- silently ignored, as they are named on the command line.
+unsupportedFlags :: CliOpts -> ReportOpts -> [String]
+unsupportedFlags opts ropts =
+  [ name | (name, given) <-
+      [ ("-D/--daily", interval_ ropts == H.Days 1)
+      , ("--date2", date2_ ropts)
+      , ("-E/--empty", empty_ ropts)
+      , ("--depth", depth_ ropts /= mempty)
+      , ("-B/--cost", conversionop_ ropts == Just ToCost)
+      , ("--pretty", isJust (maybestringopt "pretty" (rawopts_ opts)))
+      , ("--pivot", not (null (pivot_ (inputopts_ opts)))) ]
+  , given ]
+
+-- | The input options to load the journal with. hledger bounds a
+-- @--forecast@ without its own span by the report period (@-p@), which would
+-- leave the periods around it (\"vs previous\", @[@ @]@) without forecast
+-- postings. So the report span is widened to the navigable range: forecasting
+-- starts after the journal's last transaction, as without @-p@, and runs to
+-- the later of today + 180 days and one period past the @-p@ end.
+loadInputOpts :: Day -> CliOpts -> InputOpts
+loadInputOpts today opts = case (forecast_ io, reportspan_ io) of
+  (Just _, H.DateSpan ms me) | isJust ms || isJust me ->
+    io { reportspan_ = H.DateSpan Nothing (H.Exact . widen . fromEFDay <$> me) }
+  _ -> io
+  where
+    io = inputopts_ opts
+    rs' = reportspec_ opts
+    widen e = max (addDays 180 today) (next e)
+    next e = case interval_ (_rsReportOpts rs') of
+      H.Years _ -> addGregorianYearsClip 1 e
+      H.Quarters _ -> addGregorianMonthsClip 3 e
+      H.Weeks _ -> addDays 7 e
+      _ -> addGregorianMonthsClip 1 e
 
 -- | The explicit report period as a span. An open end is closed at the data
 -- range (start of data, day after the later of today and the last posting).
@@ -150,7 +196,7 @@ periodSpan (lo, hi) p = case periodAsDateSpan p of
 -- | The command reproducing the current view, without the leading @"$ "@.
 commandLine :: Settings -> Text
 commandLine s = T.unwords $
-  ["hledger", "cal"] ++ faceFlags ++ ["-p", period] ++ base ++ value ++ native
+  ["hledger", "cal"] ++ faceFlags ++ ["-p", period] ++ base ++ value ++ native ++ sFlagArgs s
     ++ ["-f", T.pack (takeFileName (sJournalFile s))] ++ map quote (sQueryArgs s)
   where
     focus = sFocus s

@@ -1,10 +1,14 @@
 module Cal.CliTest where
 
 import Cal.Cli
+import Cal.Model.Common (Kpis (..), kpisFor)
 import Cal.Types
+import Cal.Valuation (baseQty)
+import Hledger (Quantity, Status (..), toRegexCI')
+import Hledger.Query (Query (..))
 import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
-import Support (designPath, edgePath, fixtureToday, settingsFor, testTerminal)
+import Support (designPath, edgePath, envFor, fixtureToday, settingsFor, testTerminal)
 import Test.Tasty.HUnit
 
 face :: [String] -> IO Face
@@ -87,3 +91,39 @@ unit_cmdUsdThen :: Assertion
 unit_cmdUsdThen =
   cmd ["-M", "-X", "$", "--value=then", "desc:Salary Oct"]
     >>= (@?= "hledger cal -M -p 2026-11 -X $ --value=then -f design.journal 'desc:Salary Oct'")
+
+statusPath :: FilePath
+statusPath = "test/fixtures/status.journal"
+
+-- | October expenses with the given flags, as hledger bal expenses gives them.
+statusExpenses :: [String] -> IO Quantity
+statusExpenses flags = do
+  e <- envFor (["-M", "-p", "2026-10", "-f", statusPath] ++ flags)
+  pure (baseQty "₦" (kExpenses (kpisFor e IMonth (Span (fromGregorian 2026 10 1) (fromGregorian 2026 11 1)))))
+
+unit_statusFlagsTotals :: Assertion
+unit_statusFlagsTotals =
+  mapM statusExpenses [[], ["-C"], ["-U"], ["-R"], ["-C", "-R"], ["status:*"]]
+    >>= (@?= [2200, 1000, 1200, 1500, 1000, 1000])
+
+unit_statusFlagsEchoed :: Assertion
+unit_statusFlagsEchoed =
+  cmd ["-M", "-p", "2026-10", "-R", "-C", "-U", "acct:expenses"]
+    >>= (@?= "hledger cal -M -p 2026-10 -U -C -R -f design.journal acct:expenses")
+
+unit_statusFlagKeptByFilter :: Assertion
+unit_statusFlagKeptByFilter = do
+  s <- snd <$> settingsFor ["-C", "acct:expenses"]
+  (sFlagQuery s, sQuery s) @?= (StatusQ Cleared, And [StatusQ Cleared, Acct (toRegexCI' "expenses")])
+
+rejected :: [String] -> IO (Either String ())
+rejected flags = do
+  (j, _) <- settingsFor []
+  o <- parseCli (flags ++ ["-f", designPath])
+  pure (() <$ mkSettings fixtureToday testTerminal o j)
+
+unit_rejectsNoCalendarMeaning :: Assertion
+unit_rejectsNoCalendarMeaning =
+  mapM rejected [["--depth=1"], ["-E"], ["-B"], ["--date2"], ["--pivot=payee"], ["-D"], ["--pretty"]]
+    >>= (@?= map (Left . (++ " has no meaning in hledger cal"))
+          ["--depth", "-E/--empty", "-B/--cost", "--date2", "--pivot", "-D/--daily", "--pretty"])

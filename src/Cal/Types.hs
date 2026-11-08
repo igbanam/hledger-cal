@@ -59,6 +59,9 @@ data Settings = Settings
   , sValuation :: !Valuation, sRateAt :: !RateAt
   , sDefaultBase :: !CommoditySymbol, sBaseSource :: !BaseSource
   , sQueryArgs :: ![Text], sQuery :: !Query
+    -- ^ the args query combined with 'sFlagQuery'
+  , sFlagQuery :: !Query    -- ^ status (-U -P -C) and -R terms from the flags
+  , sFlagArgs :: ![Text]    -- ^ those flags, as echoed in the command line
   , sToday :: !Day, sStaleDays :: !Integer, sForecast :: !Bool, sInferPrices :: !Bool
   , sJournalFile :: !FilePath, sOutput :: !Output, sGlyphSet :: !GlyphSet, sColor :: !ColorMode }
   deriving (Eq, Show)

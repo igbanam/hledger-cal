@@ -8,13 +8,14 @@ module Support
   , envFor
   ) where
 
-import Cal.Cli (mkSettings, parseCli)
+import Cal.Cli (loadInputOpts, mkSettings, parseCli)
 import Cal.Journal (loadJournal)
 import Cal.Model.Common (Env, mkEnv)
 import Cal.Types (Settings, Terminal (..))
 import Data.Time.Calendar (Day, fromGregorian)
 import Hledger.Data.Types (Journal)
 import Hledger.Cli.CliOptions (CliOpts (..))
+
 import Hledger.Read.InputOptions (definputopts)
 import Test.Tasty.HUnit (assertFailure)
 
@@ -40,7 +41,7 @@ settingsFor :: [String] -> IO (Journal, Settings)
 settingsFor args0 = do
   let args = if "-f" `elem` args0 then args0 else args0 ++ ["-f", designPath]
   opts <- parseCli args
-  r <- loadJournal (inputopts_ opts) (file_ opts)
+  r <- loadJournal (loadInputOpts fixtureToday opts) (file_ opts)
   j <- either (assertFailure . ("journal failed to load: " ++)) pure r
   either (assertFailure . ("settings failed: " ++)) (pure . (,) j) (mkSettings fixtureToday testTerminal opts j)
 

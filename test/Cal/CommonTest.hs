@@ -69,3 +69,15 @@ unit_query :: IO ()
 unit_query = do
   e <- envFor ["-M", "-p", "2026-10", "acct:payroll"]
   n (kExpenses (kpisFor e IMonth octSpan)) @?= 1860000
+
+-- | With an explicit -p, the previous period still gets its forecast postings.
+unit_forecastPrevWithPeriod :: Assertion
+unit_forecastPrevWithPeriod = do
+  e <- envFor ["-M", "-p", "2026-12", "--forecast", "-f", "test/fixtures/forecast.journal"]
+  let k = kpisFor e IMonth (Span (d 2026 12 1) (d 2027 1 1))
+  (n (kExpenses k), fmap (bimap n n) (kPrev k)) @?= (4000, Just (0, 5000))
+
+unit_forecastNextWithPeriod :: Assertion
+unit_forecastNextWithPeriod = do
+  e <- envFor ["-M", "-p", "2026-11", "--forecast", "-f", "test/fixtures/forecast.journal"]
+  n (kExpenses (kpisFor e IMonth (Span (d 2026 12 1) (d 2027 1 1)))) @?= 4000
