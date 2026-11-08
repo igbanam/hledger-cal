@@ -160,3 +160,16 @@ unit_rejectsFacelessInterval = do
   rejected ["-p", "every 2 weeks", "-D"] >>= (@?= Left "-D/--daily has no meaning in hledger cal")
   mapM rejected [["-p", "weekly in 2026-10"], ["-p", "daily in 2026-10", "-M"]] >>= (@?= [Right (), Right ()])
   face ["-p", "weekly in 2026-10"] >>= (@?= FaceWeek)
+
+-- | -p/-b/-e and date: terms that don't overlap leave hledger an empty
+-- report span; they are rejected, each named as typed.
+unit_rejectsDisjointDates :: Assertion
+unit_rejectsDisjointDates = do
+  mapM rejected
+    [ ["-p", "2026-09", "date:2026-10"], ["-b", "2026-11", "date:2026-10"]
+    , ["date:2026-09", "acct:fuel", "date:2026-10"], ["-p", "last month", "date:2026-08"] ]
+    >>= (@?= map Left
+          [ "-p 2026-09 and date:2026-10 do not overlap", "-b 2026-11 and date:2026-10 do not overlap"
+          , "date:2026-09 and date:2026-10 do not overlap", "-p 'last month' and date:2026-08 do not overlap" ])
+  mapM rejected [["-p", "2026", "date:2026-10"], ["-p", "2026-09", "-e", "2026-10-15", "date:2026-10"]]
+    >>= (@?= [Right (), Right ()])

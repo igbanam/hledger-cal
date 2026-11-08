@@ -8,13 +8,15 @@ module Cal.Cli
   , loadInputOpts
   , spanFocus
   , dropDateArgs
+  , dateTermProblem
   ) where
 
 import Cal.Journal (firstSeenCommodity, journalDataRange)
 import Cal.Period (isoWeek, quarterOf, resolveFocus)
 import Cal.Types
 import Control.Applicative ((<|>))
-import Data.Maybe (fromMaybe, isJust)
+import Data.List (tails)
+import Data.Maybe (fromMaybe, isJust, listToMaybe, mapMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time.Calendar (addDays, addGregorianMonthsClip, addGregorianYearsClip, toGregorian)
@@ -22,12 +24,13 @@ import Data.Time.Calendar.WeekDate (fromWeekDate)
 import Hledger.Cli
   ( CliOpts (..), Mode, YNA (..), argsFlag, flagNone, flagReq, getHledgerCliOpts'
   , helpflags, hledgerCommandMode, inputflags, reportflags )
-import Hledger.Data.Dates (fromEFDay, parsePeriodExpr)
+import Hledger.Data.Dates (fromEFDay, parsePeriodExpr, spanIntersect)
+import Hledger.Data.Period (periodAsDateSpan)
 import Hledger.Data.RawOptions
   (RawOpts, boolopt, collectopts, listofstringopt, maybestringopt, maybeposintopt, setboolopt, setopt)
 import qualified Hledger.Data.Types as H
 import Hledger.Data.Valuation (ConversionOp (..), ValuationType (..))
-import Hledger.Query (filterQuery, parseQuery, queryDateSpan, queryIsDateOrDate2)
+import Hledger.Query (filterQuery, parseQuery, queryDateSpan, queryIsDate, queryIsDateOrDate2)
 import Hledger.Read.InputOptions (InputOpts (..))
 import Hledger.Reports.ReportOptions (ReportOpts (..), ReportSpec (..), queryFromFlags, rawOptsToReportSpec)
 import Safe (headMay, lastMay)
@@ -80,7 +83,9 @@ mkSettings today term opts j = do
   case unsupportedFlags today opts ropts of
     (problem : _) -> Left problem
     [] -> pure ()
-  let queryArgs = dropDateArgs today (map T.pack (listofstringopt "args" raw))
+  let args = map T.pack (listofstringopt "args" raw)
+  maybe (pure ()) Left (dateTermProblem today (periodFlags raw (period_ ropts)) args)
+  let queryArgs = dropDateArgs today args
       -- The focus period drives dates, so date terms are dropped (a date:
       -- term sets the focus, below); status (-U -P -C) and -R stay, as in
       -- hledger's own reports.
@@ -221,6 +226,31 @@ dropDateArgs today = filter (not . isDateTerm)
       Right (q, _) -> queryIsDateOrDate2 q
       Left _ -> False
 
+-- | The -p/-b/-e flags as typed, and the one span hledger makes of them.
+periodFlags :: RawOpts -> H.Period -> Maybe (Text, H.DateSpan)
+periodFlags raw p = case collectopts named raw of
+  [] -> Nothing
+  given -> Just (T.unwords given, periodAsDateSpan p)
+  where
+    named (n, v) = (\flag -> flag <> " " <> quote (T.pack v)) <$> lookup n [("period", "-p"), ("begin", "-b"), ("end", "-e")]
+
+-- | A problem with the date terms of a query, given the -p/-b/-e span (as
+-- typed) when there is one: pieces of the report span that don't overlap,
+-- named as typed, so hledger's span would be empty.
+dateTermProblem :: Day -> Maybe (Text, H.DateSpan) -> [Text] -> Maybe String
+dateTermProblem today flags args = listToMaybe
+  [ T.unpack a <> " and " <> T.unpack b <> " do not overlap"
+  | ((a, sa) : rest) <- tails (maybe [] pure flags ++ mapMaybe dateTerm args)
+  , (b, sb) <- rest
+  , isEmptySpan (spanIntersect sa sb) ]
+  where
+    dateTerm a = case parseQuery today a of
+      Right (q, _) | queryIsDate q -> Just (a, queryDateSpan False q)
+      _ -> Nothing
+    isEmptySpan ds = case ds of
+      H.DateSpan (Just s) (Just e) -> fromEFDay e <= fromEFDay s
+      _ -> False
+
 -- | An explicit report span. An open end is closed at the data range (start
 -- of data, day after the later of today and the last posting).
 explicitSpan :: (Day, Day) -> H.DateSpan -> Maybe Span
@@ -272,4 +302,7 @@ commandLine s = T.unwords $
       Native | not (T.null (sDefaultBase s)) -> ["--native"]
       _ -> []
     pad2 n = (if n < 10 then "0" else "") ++ show n
-    quote t = if T.any (== ' ') t then "'" <> t <> "'" else t
+
+-- | A word of the echoed command line, quoted when it holds a space.
+quote :: Text -> Text
+quote t = if T.any (== ' ') t then "'" <> t <> "'" else t

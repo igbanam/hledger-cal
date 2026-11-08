@@ -594,3 +594,12 @@ unit_overlayRing = do
       blank = fmap (all (== ' '))
   assertEqual (unlines picker) (Just True) (blank (ringAround "value in" picker))
   assertEqual (unlines help) (Just True) (blank (ringAround "keys" help))
+
+-- | Date terms in the / filter that don't overlap are rejected as on the
+-- command line: the message is in the footer and nothing else changes.
+unit_filterDisjointDates :: IO ()
+unit_filterDisjointDates = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let s = run s0 (CmdFilterOpen : map CmdFilterChar "date:2026-09 acct:fuel date:2026-08" ++ [CmdFilterSubmit])
+  fmap fst (usMessage s) @?= Just "date:2026-09 and date:2026-08 do not overlap"
+  (st s, usPane s) @?= (st s0, PaneNone)

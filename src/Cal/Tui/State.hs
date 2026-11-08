@@ -15,7 +15,7 @@ module Cal.Tui.State
   , errorSummary
   ) where
 
-import Cal.Cli (dropDateArgs, spanFocus)
+import Cal.Cli (dateTermProblem, dropDateArgs, spanFocus)
 import Cal.Currency (chipLabel, codeOf, symbolOf)
 import Cal.Journal (journalDataRange)
 import Cal.Model.Commodities (CommodityRow (..), CommoditiesModel (..), commoditiesModel)
@@ -263,6 +263,9 @@ onDraft f us = case usPane us of
 submitFilter :: UTCTime -> Text -> UiState -> UiState
 submitFilter now draft us
   | T.null (T.strip draft) = withSettings (\st -> st { sQuery = sFlagQuery st, sQueryArgs = [] }) us
+  -- the startup -p has become the focus, which a date: term replaces; so
+  -- only the typed date terms must overlap one another
+  | Just problem <- dateTermProblem (sToday (settingsOf us)) Nothing (T.words draft) = message now (T.pack problem) us
   | otherwise = case parseQuery (sToday (settingsOf us)) draft of
       Right (q, _) ->
         -- a date: term sets the focus period, as on the command line
