@@ -3,6 +3,7 @@
 module Cal.Model.Common
   ( Env (..)
   , mkEnv
+  , withEnvSettings
   , envBase
   , Money
   , Activity (..)
@@ -15,7 +16,8 @@ module Cal.Model.Common
   , group2
   ) where
 
-import Cal.Period (inSpan, prevSpan)
+import Cal.Journal (isForecastTxn, postingKind)
+import Cal.Period (prevSpan)
 import Cal.Prices (Prices, mkPrices)
 import Cal.Types
 import Cal.Valuation
@@ -26,10 +28,29 @@ import Data.Text (Text)
 import qualified Data.Set as S
 import Hledger hiding (Interval (..))
 
-data Env = Env { envJournal :: !Journal, envSettings :: !Settings, envPrices :: !Prices }
+-- | 'envIndex': the journal's income and expense postings by date (journal
+-- order within a day), built once so a period only touches its own postings.
+data Env = Env
+  { envJournal :: !Journal, envSettings :: !Settings, envPrices :: !Prices
+  , envIndex :: !(M.Map Day [Posting]) }
 
 mkEnv :: Journal -> Settings -> Env
-mkEnv j s = Env j s (mkPrices (sInferPrices s) j)
+mkEnv j s = Env j s (mkPrices (sInferPrices s) j) (postingIndex j)
+
+-- | New settings for the same journal: the index is kept, and the prices
+-- too unless price inference was switched.
+withEnvSettings :: Settings -> Env -> Env
+withEnvSettings s' e
+  | sInferPrices s' == sInferPrices (envSettings e) = e { envSettings = s' }
+  | otherwise = e { envSettings = s', envPrices = mkPrices (sInferPrices s') (envJournal e) }
+
+postingIndex :: Journal -> M.Map Day [Posting]
+postingIndex j = M.map reverse $ M.fromListWith (++)
+  [ (postingDate p, [p]) | p <- journalPostings j, Just _ <- [ptransaction p], Just _ <- [postingKind j p] ]
+
+-- | Indexed postings dated in the span.
+postingsIn :: Env -> Span -> [Posting]
+postingsIn e (Span a b) = concat (M.elems (M.takeWhileAntitone (< b) (M.dropWhileAntitone (< a) (envIndex e))))
 
 -- | The base commodity; Nothing when Native.
 envBase :: Env -> Maybe CommoditySymbol
@@ -58,13 +79,15 @@ data Kpis = Kpis
 
 -- | Query-matched postings dated in the span, valued with the span as valuation period.
 periodPostings :: Env -> Span -> [VPosting]
-periodPostings (Env j s prices) span' =
-  filter keep (valuePostings j prices s span' (journalPostings j))
+periodPostings env span' =
+  valuePostings j (envPrices env) s span' (filter keep (postingsIn env span'))
   where
+    j = envJournal env
+    s = envSettings env
     q = sQuery s
-    keep v = inSpan (vpDate v) span'
-      && (sForecast s || not (vpForecast v))
-      && matchesPostingExtra (journalAccountType j) q (vpPosting v)
+    -- filtered before valuing: valuation is the expensive part
+    keep p = (sForecast s || not (maybe False isForecastTxn (ptransaction p)))
+      && matchesPostingExtra (journalAccountType j) q p
 
 -- | Leaf of the first two components: "expenses:payroll:security" -> "payroll".
 group2 :: AccountName -> Text

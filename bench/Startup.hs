@@ -1,7 +1,8 @@
 {-# LANGUAGE NoOverloadedStrings #-}
 -- | Startup benchmark: generate a 10,000-transaction journal (3 currencies,
--- monthly P directives, 5 years), then time loading, resolving settings and
--- rendering the Month view at 140 columns. Exits 1 if it takes >= 1.0 s.
+-- monthly P directives, 5 years), then time the first frame of each face:
+-- loading, resolving settings and rendering the view at 140 columns. Exits 1
+-- if any face takes >= 1.0 s.
 module Main (main) where
 
 import Cal.Cli (mkSettings, parseCli)
@@ -10,7 +11,7 @@ import Cal.Model.Common (mkEnv)
 import Cal.Print (renderPrint)
 import Cal.Types (Terminal (..))
 import Control.Exception (finally)
-import Control.Monad (when)
+import Control.Monad (forM, when)
 import qualified Data.Text as T
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (diffUTCTime, getCurrentTime)
@@ -62,12 +63,16 @@ main = do
   tmp <- getTemporaryDirectory
   (path, h) <- openTempFile tmp "hledger-cal-bench.journal"
   hPutStr h journalText >> hClose h
-  secs <- run path `finally` removeFile path
-  printf "startup: %.3f s (limit %.1f s)\n" secs threshold
-  when (secs >= threshold) exitFailure
+  times <- forM faces (\(name, flags) -> (,) name <$> run path flags) `finally` removeFile path
+  mapM_ (\(name, secs) -> printf "%-12s %.3f s\n" name secs) times
+  printf "limit %.1f s per face\n" threshold
+  when (any ((>= threshold) . snd) times) exitFailure
   where
-    run path = do
-      opts <- parseCli ["-f", path, "-M"]
+    faces =
+      [ ("Year", ["-Y"]), ("Quarter", ["-Q"]), ("Month", ["-M"]), ("Week", ["-W"])
+      , ("Commodities", ["--commodities"]) ] :: [(String, [String])]
+    run path flags = do
+      opts <- parseCli (["-f", path] ++ flags)
       t0 <- getCurrentTime
       loaded <- loadJournal (inputopts_ opts) (file_ opts)
       j <- either fail pure loaded
@@ -76,5 +81,5 @@ main = do
       out <- either (fail . T.unpack) pure (renderPrint (mkEnv j s) 140)
       T.length out `seq` pure ()
       t1 <- getCurrentTime
-      printf "rendered %d chars, %d txns\n" (T.length out) (length (jtxns j))
+      printf "%s: rendered %d chars, %d txns\n" (unwords flags) (T.length out) (length (jtxns j))
       pure (realToFrac (diffUTCTime t1 t0) :: Double)

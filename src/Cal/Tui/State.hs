@@ -15,7 +15,7 @@ module Cal.Tui.State
 import Cal.Currency (codeOf)
 import Cal.Journal (journalDataRange)
 import Cal.Model.Commodities (CommodityRow (..), CommoditiesModel (..), commoditiesModel)
-import Cal.Model.Common (Env (..), mkEnv)
+import Cal.Model.Common (Env (..), mkEnv, withEnvSettings)
 import Cal.Model.Shared (currencyChoices)
 import Cal.Model.Week (WeekDay (..), WeekModel (..), weekModel)
 import Cal.Period (clampFocus, quarterOf, stepFocus)
@@ -110,7 +110,7 @@ settingsOf = envSettings . usEnv
 
 -- | Replace the settings, rebuilding the env.
 withSettings :: (Settings -> Settings) -> UiState -> UiState
-withSettings f us = us { usEnv = mkEnv (envJournal env) (f (envSettings env)) }
+withSettings f us = us { usEnv = withEnvSettings (f (envSettings env)) env }
   where env = usEnv us
 
 setFocus :: Day -> UiState -> UiState
