@@ -41,7 +41,7 @@ $ hledger cal -M -p 2026-10 -f design.journal
 
 +--------------------------------------------------------------------------------------+  +------------------------------------------------+
 | Thu 1 Oct 2026                                               1 txn . 1 posting . NGN |  | Rates . 31 Oct      ₦ per 1 unit . delta month |
-| Salary  income:salary                                 ₦2,500,000  native  +2,500,000 |  | USD     1,550.00  +2.0%  from txn 31 Oct       |
+| Salary  income:salary                            ₦2,500,000  native       +2,500,000 |  | USD     1,550.00  +2.0%  from txn 31 Oct       |
 | already in NGN . no conversion . no FX effect                                        |  | EUR     1,800.00  +0.7%  P . 20 Oct            |
 |                                                                                      |  | INR        17.50  +0.4%  P . 22 Oct            |
 |                                                                                      |  | KWD     5,000.00  +0.2%  P . 16 Oct            |

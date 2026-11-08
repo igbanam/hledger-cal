@@ -54,13 +54,13 @@ $ hledger cal -M -p 2026-10 -f edge.journal
 
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │ Thu 1 Oct 2026                                       1 txn · 1 posting · NGN │
-│ Salary  income:salary                         ₦1,000,000  native  +1,000,000 │
+│ Salary  income:salary                      ₦1,000,000  native     +1,000,000 │
 │ already in NGN · no conversion · no FX effect                                │
 └──────────────────────────────────────────────────────────────────────────────┘
 
 ┌────────────────────────────────────────┐
 │ Rates · 31 Oct  ₦ per 1 unit · Δ month │
-│ BTC              —       —  no price   │
+│ BTC                   —  —  no price   │
 └────────────────────────────────────────┘
 
                                                             grey = native amount

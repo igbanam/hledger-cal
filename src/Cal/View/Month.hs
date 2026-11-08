@@ -88,7 +88,13 @@ monthDoc ctx m = ViewDoc
     minCol = minimum colWs
     -- content between a leading and a trailing space, then the divider;
     -- narrow cells drop the trailing space, the narrowest the leading one too
-    lead = if minCol >= 12 then 1 else 0
+    -- at 80–99 a leading space too when every figure still fits beside it
+    lead = if minCol >= 12 || cellNeed <= minCol - 2 then 1 else 0
+    cellNeed = maximum (0 : [ textW t | wk <- weeks, c <- fst wk, t <- cellFigures c ])
+    cellFigures c = [ fmtSigned f (dcNet c) | dcHasPostings c ] ++ maybe [] pure (nativeText c)
+    nativeText c = case dcForeign c of
+      Just (_, amt, more) | fBase f /= Nothing -> Just (fmtNative f amt <> (if more > 0 then " +" <> T.pack (show more) else ""))
+      _ -> Nothing
     trail = if minCol >= 14 then 1 else 0
     innerOf cw = cw - 1 - lead - trail
     rule = st RRule
@@ -125,10 +131,7 @@ monthDoc ctx m = ViewDoc
         l1 = Seg daySty dayT : [ s' | not (T.null codeT), s' <- [spaces (inner - textW dayT - textW codeT), Seg dim codeT] ]
         netT = fmtSigned f (dcNet c)
         nets = [ [Seg (signStyle g netT) x] | dcHasPostings c, x <- wrapFig g inner netT ]
-        natives = case dcForeign c of
-          Just (_, amt, more) | fBase f /= Nothing ->
-            [ [Seg dim x] | x <- wrapFig g inner (fmtNative f amt <> (if more > 0 then " +" <> T.pack (show more) else "")) ]
-          _ -> []
+        natives = [ [Seg dim x] | Just t <- [nativeText c], x <- wrapFig g inner t ]
     weekNetLines wn =
       [ (bold (signStyle g netT), x) | x <- wrapFig g (wnW - 1) netT ]
       ++ [ (dim, x) | t <- drop 1 (wnTexts wn), x <- wrapFig g (wnW - 1) t ]
@@ -228,7 +231,13 @@ monthDoc ctx m = ViewDoc
         valW = colW (textW . valueOf . snd) rows
         descNeed = colW (textW . fst) rows
         acctMax = colW (acctNeed . snd) rows
-        room = max 0 (dI - natW - rateW - valW - 8)
+        -- the native amount ends at about 71% of the panel, as in the
+        -- artboard, with the rate after it and the valued figure at the
+        -- right edge; it moves right for long descriptions and accounts
+        natEndMax = dI - rateW - valW - 4
+        natEnd = min natEndMax (max (dI * 71 `div` 100) (descNeed + acctMax + 4 + natW))
+        room = max 0 (natEnd - natW - 4)
+        valGap = max 2 (dI - natEnd - 2 - rateW - valW)
         descW
           | descNeed + acctMax <= room = descNeed
           | otherwise = max 0 (min descNeed (max (room - acctMax) (room * 2 `div` 5)))
@@ -242,7 +251,7 @@ monthDoc ctx m = ViewDoc
           in line $
             [Seg dsty d, spaces (descW - textW d + 2)] ++ as ++ [spaces (acctW - segsW as + 2)]
             ++ [spaces (natW - textW (nativeOf r)), Seg sty (nativeOf r), spaces 2]
-            ++ [Seg dim (rateOf r), spaces (rateW - textW (rateOf r) + 2)]
+            ++ [Seg dim (rateOf r), spaces (rateW - textW (rateOf r) + valGap)]
             ++ [spaces (valW - textW v), Seg (signStyle g v) v]
         foreignKinds =
           [ drKind r | (_, r) <- rows, any ((/= fBase f) . Just . acommodity) (amounts (drNative r)) ]
@@ -260,7 +269,7 @@ monthDoc ctx m = ViewDoc
     -- rates panel: the title row, then one row per commodity, the fresh
     -- rates first and the stale or missing ones after them (as in the
     -- artboard). @rw@ is the width to fill: space beyond the natural width
-    -- goes into the gaps after the code and after the rate.
+    -- goes between the code and the rate, so Δ stays by its source.
     ratesLines rp rw = vcat (titleRow tw title heading
                               : (if null rws then [str dim "no other commodities"] else map rateLine rws))
       where
@@ -293,8 +302,8 @@ monthDoc ctx m = ViewDoc
         natural = codeW + 2 + rateW + 2 + deltaW + 2 + srcW
         tw = max rw (max natural (textW title + 2 + textW heading))
         extra = max 0 (rw - natural)
-        gap1 = 2 + extra - extra `div` 3
-        gap2 = 2 + extra `div` 3
+        gap1 = 2 + extra
+        gap2 = 2 :: Int
         rateLine r =
           let cs = codeSegs r
           in line $

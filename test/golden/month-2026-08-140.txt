@@ -45,7 +45,7 @@ $ hledger cal -M -p 2026-08 -f design.journal
 
 ┌──────────────────────────────────────────────────────────────────────────────────────┐  ┌────────────────────────────────────────────────┐
 │ Sat 1 Aug 2026                                               1 txn · 1 posting · NGN │  │ Rates · 31 Aug          ₦ per 1 unit · Δ month │
-│ Salary  income:salary                                 ₦2,500,000  native  +2,500,000 │  │ USD     1,515.00  +0.3%  from txn 25 Aug       │
+│ Salary  income:salary                            ₦2,500,000  native       +2,500,000 │  │ USD     1,515.00  +0.3%  from txn 25 Aug       │
 │ already in NGN · no conversion · no FX effect                                        │  │ AED       422.00  +5.5%  P · 14 Aug            │
 │                                                                                      │  │ EUR •   1,700.00      —  stale · 1 Jan (242 d) │
 │                                                                                      │  │ INR •      17.00      —  stale · 1 Jan (242 d) │

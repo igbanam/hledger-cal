@@ -41,11 +41,11 @@ $ hledger cal -M -p 2026-10 -X $ -f design.journal
 
 ┌──────────────────────────────────────────────────────────────────────────────────────┐  ┌────────────────────────────────────────────────┐
 │ Thu 1 Oct 2026                                               1 txn · 1 posting · NGN │  │ Rates · 31 Oct          $ per 1 unit · Δ month │
-│ Salary  income:salary                               ₦2,500,000  @ $0.0006  +1,612.90 │  │ NGN      0.0006   −1.9%  from txn 31 Oct       │
-│ at the txn-date rate ($0.0007) this was +1,644.74 · FX effect −31.83                 │  │ EUR        1.16   −1.3%  via NGN · 20 Oct      │
-│                                                                                      │  │ INR      0.0113   −1.5%  via NGN · 22 Oct      │
-│                                                                                      │  │ KWD        3.23   −1.7%  via NGN · 16 Oct      │
-│                                                                                      │  │ AED •    0.2723       —  stale · 14 Aug (78 d) │
+│ Salary  income:salary                            ₦2,500,000  @ $0.0006     +1,612.90 │  │ NGN       0.0006  −1.9%  from txn 31 Oct       │
+│ at the txn-date rate ($0.0007) this was +1,644.74 · FX effect −31.83                 │  │ EUR         1.16  −1.3%  via NGN · 20 Oct      │
+│                                                                                      │  │ INR       0.0113  −1.5%  via NGN · 22 Oct      │
+│                                                                                      │  │ KWD         3.23  −1.7%  via NGN · 16 Oct      │
+│                                                                                      │  │ AED •     0.2723      —  stale · 14 Aug (78 d) │
 └──────────────────────────────────────────────────────────────────────────────────────┘  └────────────────────────────────────────────────┘
 
                                                                                                                         grey = native amount

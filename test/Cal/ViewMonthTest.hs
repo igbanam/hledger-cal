@@ -237,6 +237,15 @@ unit_cursorBoxClosed = sequence_
       assertBool (tag ++ ": a box, not a line") (r1 - r0 >= 2 && c1 - c0 >= 2)
       Just r <- pure (vdCursorRow d)
       assertEqual (tag ++ ": the cursor row is the box's first inner line") (r0 + 1) r
+      -- pinned to the grid: Monday's box starts at the outer edge, and the
+      -- right edge is a divider (a joint on the rules, a bar in the header)
+      let body = vdBody d
+          bodyLs = T.lines (plainText body)
+          charAt i c = T.index (bodyLs !! i) c
+      if day == "2026-10-05" then assertEqual (tag ++ ": Monday's left edge") 0 c0 else pure ()
+      assertBool (tag ++ ": right edge on a joint") (charAt r0 c1 `elem` ("┼┬┴┤" :: String))
+      assertEqual (tag ++ ": right edge under a header divider") '│' (charAt 1 c1)
+      assertBool (tag ++ ": no inverse cell") (not (any (stInverse . snd) (concat (cellStyles body))))
 
 -- | The day detail and rates panels open with a title row inside the box
 -- (design F4): the day bold on the left and its counts on the right; the
@@ -245,8 +254,7 @@ unit_panelTitles :: Assertion
 unit_panelTitles = do
   t30 <- plainText <$> monthRender ["-M", "-p", "2026-10-30"] 140
   let ls = T.lines t30
-      titleL = [ l | l <- ls, "Fri 30 Oct 2026" `T.isInfixOf` l ]
-  assertBool ("detail title row: " ++ show titleL) (hasLine t30 ["│ Fri 30 Oct 2026 ", " 1 txn · 2 postings · USD │"])
+  assertBool "detail title row" (hasLine t30 ["│ Fri 30 Oct 2026 ", " 1 txn · 2 postings · USD │"])
   assertBool "rates title row" (hasLine t30 ["│ Rates · 31 Oct ", " ₦ per 1 unit · Δ month │"])
   -- no title in the top border any more
   assertBool "plain top borders" (not (any ("┌─ " `T.isPrefixOf`) ls))
