@@ -283,23 +283,21 @@ commoditiesDoc ctx m = ViewDoc
           | textW left + 2 + rightW <= dI =
               line [Seg (bold plain) left, spaces (dI - textW left - rightW), Seg dim rangeT, pctS]
           | otherwise = vcat [str (bold plain) (truncEnd g dI left), line [Seg dim rangeT, pctS]]
-        -- a bar per month-end on three round ticks (top, middle, floor), the
-        -- floor under the lowest price so the lowest bar still shows
+        -- a bar per month-end. The top tick is the highest price rounded up
+        -- and the floor the lowest less a twentieth of the range rounded
+        -- down, both to a tenth of the range's order of magnitude (about two
+        -- significant figures of the range), so the highest bar reaches the
+        -- top row and the lowest still shows; the middle tick is exact
         vals = map (fmap realToFrac . snd) (cdSeries cd) :: [Maybe Double]
         present = [v | Just v <- vals]
         (hi, lo) = if null present then (0, 0) else (maximum present, minimum present)
-        raw = if hi > lo then (hi - lo) / 2 else max 1 (abs hi / 10)
-        mag = 10 ^^ (floor (logBase 10 raw) :: Integer) :: Double
-        steps = [ k * mag * 10 ^^ e | e <- [0 :: Integer ..], k <- [1, 2, 2.5, 5] ]
-        topOf n = fromIntegral (ceiling (hi / n) :: Integer) * n
-        step = case [ n | n <- steps, n >= raw, topOf n - 2 * n < lo ] of
-          (n : _) -> n
-          [] -> raw
-        topV = topOf step
-        floorV = topV - 2 * step
+        range' = if hi > lo then hi - lo else max 1 (abs hi / 10)
+        unitV = 10 ^^ (floor (logBase 10 range') - 1 :: Integer) :: Double
+        topV = fromIntegral (ceiling (hi / unitV) :: Integer) * unitV
+        floorV = fromIntegral (floor ((lo - range' / 20) / unitV) :: Integer) * unitV
         frac v = (v - floorV) / (topV - floorV)
         chartH = 8
-        labels = map (axisT . realToFrac) [topV, topV - step, floorV]
+        labels = map (axisT . realToFrac) [topV, (topV + floorV) / 2, floorV]
         labelW = maximum (map textW labels)
         labelAt i
           | i == 0 = labels !! 0

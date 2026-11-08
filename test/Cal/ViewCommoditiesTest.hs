@@ -238,12 +238,22 @@ unit_detailChart = do
       inner = [ T.drop 2 (fst (T.breakOn "│  │" l)) | l <- ls ]
   assertBool "title and range" (hasLine (T.unlines inner) ["VOO in ₦ · per share · 12 months", "710,400 → 868,000 · +22.2%"])
   let yLabels = [ T.strip (fst (T.breakOn "│" l)) | l <- inner, "│" `T.isInfixOf` l ]
-  filter (not . T.null) yLabels @?= ["900k", "800k", "700k"]
+  filter (not . T.null) yLabels @?= ["870k", "785k", "700k"]
+  -- the highest bar reaches the top row; January, the lowest, still shows
+  let barRows = [ T.drop 1 (snd (T.breakOn "│" l)) | l <- inner, "│" `T.isInfixOf` l ]
+      blocks = "█▁▂▃▄▅▆▇" :: String
+      isBlock = (`elem` blocks)
+      runs t = length (filter ((== '#') . T.head) (T.group (T.map (\ch -> if isBlock ch then '#' else ' ') t)))
+  assertBool "top row not empty" (T.any isBlock (T.concat (take 1 barRows)))
+  -- every priced month (Jan to Oct) shows on the floor row
+  map runs (take 1 (reverse barRows)) @?= [10]
   assertBool "initials" (any ((== T.words "N D J F M A M J J A S O") . T.words) inner)
   assertBool "decomposition" (hasLine (T.unlines inner) ["share price in $ +16.7%", "× $ → ₦ +4.7%", "= in ₦ +22.2%"])
   -- bar cells: the rightmost bar alone is in the text colour, the rest faded
-  let bars = [ (col, stRole s) | r <- cellStyles panel, (col, (ch, s)) <- zip [0 :: Int ..] r
-                               , ch `elem` ("█▁▂▃▄▅▆▇" :: String), col < 72 ]
+  -- the detail box ends where the two boxes meet
+  let detailW = maximum (0 : [ T.length (fst (T.breakOn "│  │" l)) + 1 | l <- ls, "│  │" `T.isInfixOf` l ])
+      bars = [ (col, stRole s) | r <- cellStyles panel, (col, (ch, s)) <- zip [0 :: Int ..] r
+                               , ch `elem` ("█▁▂▃▄▅▆▇" :: String), col < detailW ]
       lit = [ c | (c, RText) <- bars ]
       faded = [ c | (c, RFaded) <- bars ]
   assertBool "one lit bar" (not (null lit) && maximum lit - minimum lit < 6)

@@ -38,12 +38,12 @@ $ hledger cal --commodities -p 2026-10 -f design.journal
 │                                                                       │  │   shares, units. Each one is valued in the base through any   │
 │ 1,550 │                                                         ████  │  │   chain of prices (VOO → USD → NGN).                          │
 │       │                                                         ████  │  │ · Prices come from P directives (e.g. a daily price feed)     │
-│       │                                                    ▒▒▒▒ ████  │  │   first. Otherwise they're inferred from transaction costs (@ │
-│       │                                          ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ████  │  │   / @@).                                                      │
-│ 1,500 │                           ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ████  │  │ · Unrealized gain = value now − what was paid (the @ cost).   │
-│       │                 ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ████  │  │ · A security priced only by inference moves only when you     │
-│       │            ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ████  │  │   trade it. Add P directives to follow the market.            │
-│ 1,450 │  ·     ·   ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ████  │  │ • AED has no price since 14 Aug, so a 78-day-old rate is      │
+│       │                                                         ████  │  │   first. Otherwise they're inferred from transaction costs (@ │
+│       │                                                    ▒▒▒▒ ████  │  │   / @@).                                                      │
+│ 1,513 │                                          ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ████  │  │ · Unrealized gain = value now − what was paid (the @ cost).   │
+│       │                                ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ████  │  │ · A security priced only by inference moves only when you     │
+│       │                      ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ████  │  │   trade it. Add P directives to follow the market.            │
+│ 1,476 │  ·     ·   ▁▁▁▁ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ▒▒▒▒ ████  │  │ • AED has no price since 14 Aug, so a 78-day-old rate is      │
 │          N     D    J    F    M    A    M    J    J    A    S    O    │  │   used.                                                       │
 └───────────────────────────────────────────────────────────────────────┘  └───────────────────────────────────────────────────────────────┘
 
