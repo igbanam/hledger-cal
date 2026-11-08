@@ -6,7 +6,7 @@ import qualified Cal.Doc as Doc
 import Cal.Journal (journalDataRange)
 import Cal.Model.Common (Env (..))
 import Cal.Model.Commodities (CommodityRow (..), CommoditiesModel (..), commoditiesModel)
-import Cal.Theme (Role (..))
+import Cal.Theme (Role (..), nearest256, roleRGB, tintRGB)
 import Cal.Tui.App (appStateFor, attrMapFor, bgAttr, blockWidget, calAttrMap, clampRegisterScroll, cursorSpan, draw, styleAttr)
 import Cal.Model.Month (monthModel)
 import Cal.View.Month (monthDoc)
@@ -408,3 +408,21 @@ unit_commInitialCursor = do
   sel (run c [CmdMove 0 1]) @?= ["Dh"]
   sel (run c [CmdMove 0 (-1)]) @?= ["\8358"]
   sValuation (st (run c [CmdEnter])) @?= ValuedIn "$"
+
+-- | 256-colour mode uses the nearest xterm index for every role and tint,
+-- foreground and background: the panel tint #13171c is 234 (#1c1c1c, at
+-- squared distance 106; 233 #121212 is at 126), the bar track 236.
+unit_colour256 :: IO ()
+unit_colour256 = do
+  let m = attrMapFor Color256
+      idx n = Vty.SetTo (Vty.Color240 (fromIntegral (n - 16 :: Int)))
+  nearest256 (0x13, 0x17, 0x1c) @?= 234
+  nearest256 (0x2a, 0x2f, 0x37) @?= 236
+  Vty.attrBackColor (attrMapLookup (bgAttr RPanel 100) m) @?= idx 234
+  Vty.attrForeColor (attrMapLookup (styleAttr (Doc.st RRule)) m) @?= idx 236
+  mapM_ (\r -> mapM_ (\t -> do
+      let c = nearest256 (tintRGB t (roleRGB r))
+      Vty.attrBackColor (attrMapLookup (bgAttr r t) m) @?= idx c
+      if r == RPanel then pure ()
+      else Vty.attrForeColor (attrMapLookup (styleAttr (Doc.tinted t (Doc.st r))) m) @?= idx c)
+    [100, 60, 40, 25]) [minBound .. maxBound :: Role]

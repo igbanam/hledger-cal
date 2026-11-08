@@ -1,6 +1,6 @@
 -- | Role colours and terminal colour escapes. Pure.
 module Cal.Theme
-  ( Role (..), RGB, roleRGB, tintRGB, ansiFg, ansiBg, backgroundRGB
+  ( Role (..), RGB, roleRGB, tintRGB, ansiFg, ansiBg, backgroundRGB, nearest256
   ) where
 
 import Data.List (minimumBy)

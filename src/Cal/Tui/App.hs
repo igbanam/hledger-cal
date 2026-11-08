@@ -5,6 +5,7 @@ module Cal.Tui.App
   , blockWidget
   , calAttrMap
   , attrMapFor
+  , colourFor
   , styleAttr
   , bgAttr
   , clampRegisterScroll
@@ -39,7 +40,7 @@ import Cal.Journal (loadJournal)
 import Cal.Model.Common (Env (..))
 import Cal.Model.Register (RegisterRow, registerRows)
 import Cal.Period (faceSpan)
-import Cal.Theme (RGB, Role (..), backgroundRGB, roleRGB, tintRGB)
+import Cal.Theme (RGB, Role (..), backgroundRGB, nearest256, roleRGB, tintRGB)
 import Cal.Tui.State
 import Cal.Glyphs (Glyphs (..), glyphsFor)
 import Cal.Types (ColorMode (..), GlyphSet (..), Settings (..))
@@ -90,8 +91,12 @@ allStyles :: [Style]
 allStyles =
   [ Style r t b i Nothing | r <- [minBound .. maxBound], t <- tints, b <- [False, True], i <- [False, True] ]
 
-rgb :: RGB -> Vty.Color
-rgb (r, g, b) = Vty.rgbColor (w r) (w g) (w b)
+-- | A colour for the mode: in 256-colour mode the nearest xterm index
+-- (6x6x6 cube or grey ramp), as print uses, rather than vty's own
+-- approximation, which lifts the dark panel tints to a light grey.
+colourFor :: ColorMode -> RGB -> Vty.Color
+colourFor Color256 c = Vty.Color240 (fromIntegral (nearest256 c - 16))
+colourFor _ (r, g, b) = Vty.rgbColor (w r) (w g) (w b)
   where w = fromIntegral :: Word8 -> Int
 
 styleVtyAttr :: ColorMode -> Style -> Vty.Attr
@@ -102,6 +107,7 @@ styleVtyAttr cm s = withBold (colours Vty.defAttr)
       | stBold s || (cm == ColorNone && stRole s == RCursorBorder) = a `Vty.withStyle` Vty.bold
       | otherwise = a
     c = tintRGB (stTint s) (roleRGB (stRole s))
+    rgb = colourFor cm
     colours a
       | cm == ColorNone = if stInverse s then a `Vty.withStyle` Vty.reverseVideo else a
       | stInverse s = a `Vty.withForeColor` rgb backgroundRGB `Vty.withBackColor` rgb c
@@ -111,7 +117,7 @@ styleVtyAttr cm s = withBold (colours Vty.defAttr)
 bgVtyAttr :: ColorMode -> Role -> Int -> Vty.Attr
 bgVtyAttr cm r t
   | cm == ColorNone = Vty.defAttr
-  | otherwise = Vty.defAttr `Vty.withBackColor` rgb (tintRGB t (roleRGB r))
+  | otherwise = Vty.defAttr `Vty.withBackColor` colourFor cm (tintRGB t (roleRGB r))
 
 -- | Every role x tint x bold x inverse, and every role x tint as a
 -- background; no colours at all for 'ColorNone'.
