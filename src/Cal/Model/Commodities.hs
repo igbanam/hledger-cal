@@ -25,7 +25,10 @@ data CommodityRow = CommodityRow
   { crCommodity :: !CommoditySymbol, crIsBase :: !Bool, crHeld, crChange :: !Quantity
   , crPrice :: !(Maybe RateInfo), crDeltaPct :: !(Maybe Double), crSpark :: ![Maybe Quantity]
   , crValue :: !(Maybe Quantity), crShare :: !(Maybe Double), crGain :: !(Maybe Quantity)
-  , crStale :: !(Maybe Integer) }
+  , crStale :: !(Maybe Integer)
+  , crViaPrice :: !(Maybe (CommoditySymbol, Quantity))
+    -- ^ for a price via another commodity: that commodity and the price in it
+  }
   deriving (Eq, Show)
 
 -- | cdSplit = (via, own-price change, via→base change, total change).
@@ -133,7 +136,10 @@ commoditiesModel env cursor = CommoditiesModel
            , crChange = M.findWithDefault 0 c changed
            , crPrice = info, crDeltaPct = delta, crSpark = map snd (series c)
            , crValue = val, crShare = Nothing, crGain = gain
-           , crStale = stale }
+           , crStale = stale
+           , crViaPrice = case riSource <$> info of
+               Just (SrcVia x) -> (,) x <$> rateOn prices c x heldAt
+               _ -> Nothing }
     rows0 = map mkRow commodities
     total = case base of
       Just _ -> Just (sum (mapMaybe crValue rows0))

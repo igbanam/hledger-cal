@@ -1,7 +1,7 @@
 -- | Number, rate, percentage and date formatting. Pure.
 module Cal.Format
   ( Fmt (..), mkFmt
-  , fmtSigned, fmtAbs, fmtNative, fmtQty, fmtRate, fmtPct, fmtDeltaPct
+  , fmtSigned, fmtAbs, fmtNative, fmtUnits, fmtQty, fmtRate, fmtPct, fmtDeltaPct
   , fmtDayMon, fmtDayLong, fmtMonthYear, fmtScale
   ) where
 
@@ -16,7 +16,7 @@ import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Hledger
   ( Amount (..), AmountFormat (..), AmountPrecision (..), AmountStyle (..), Journal, MixedAmount, Quantity
-  , Side (..), amountStripCost, amountsRaw, defaultFmt, journalCommodityStyles, nullamt
+  , Side (..), amountStripCost, amountsRaw, defaultFmt, journalCommodityStyles, mixed, nullamt
   , showAmountB, wbToText )
 import Numeric (showFFloat)
 
@@ -99,6 +99,13 @@ fmtNative f m = case components f m of
   [] -> "0"
   cs -> T.intercalate " + " (map one cs)
   where one a = (if aquantity a < 0 then gMinus (fGlyphs f) else "") <> renderAbs a
+
+-- | A quantity of a commodity in its journal style, with a unit word in
+-- place of the symbol: @fmtUnits f "sh" "VOO" 3@ is "3 sh", "−1,500 sh"; 0 is "0".
+fmtUnits :: Fmt -> Text -> CommoditySymbol -> Quantity -> Text
+fmtUnits f unit c q = case components f (mixed [nullamt { acommodity = c, aquantity = q }]) of
+  [] -> "0"
+  (a : _) -> (if q < 0 then gMinus (fGlyphs f) else "") <> renderBareAbs a <> " " <> unit
 
 -- | Base-style quantity, no symbol: "+12,000", "0", "−12,000".
 fmtQty :: Fmt -> Quantity -> Text

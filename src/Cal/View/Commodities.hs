@@ -2,7 +2,8 @@
 -- gain and source, the selected commodity's price chart and the explainer. Pure.
 module Cal.View.Commodities (commoditiesDoc) where
 
-import Data.Maybe (fromMaybe, isJust)
+import Data.List (intercalate)
+import Data.Maybe (fromMaybe, isJust, listToMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time.Calendar (toGregorian)
@@ -32,7 +33,7 @@ data ColId = CComm | CHeld | CChange | CPrice | CDelta | CSpark | CValue | CShar
 
 commoditiesDoc :: RenderCtx -> CommoditiesModel -> ViewDoc
 commoditiesDoc ctx m = ViewDoc
-  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdCursorLast = Nothing, vdStretch = Nothing
+  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdCursorLast = cursorLast, vdStretch = Nothing
   , vdBottom = panels
   , vdKeys = keys, vdLegend = legend }
   where
@@ -83,32 +84,55 @@ commoditiesDoc ctx m = ViewDoc
     one t = [Seg plain t]
     dimD = [Seg dim dash]
 
+    bx = gBox g
+    -- a security's quote currency: what it is priced via, else the base
+    quoteSym r = case crPrice r of
+      Just i | valued -> Just $ case riSource i of
+        SrcVia x -> fromMaybe x (symbolOf x)
+        _ -> baseSym
+      _ -> Nothing
     commCell r =
-      Seg (if isCursor r then inverse (bold (st RCursor)) else plain) (chipLabel (crCommodity r))
-        : [ Seg (st RWarn) (" " <> gStale g) | isJust (crStale r) ]
-    heldCell r = one (fmtNative f (amt (crCommodity r) (crHeld r)))
+      Seg plain (chipLabel (crCommodity r))
+        : [ Seg dim " base" | crIsBase r ]
+        ++ [ Seg (st RWarn) (" " <> gStale g) | isJust (crStale r) ]
+        ++ [ Seg dim (" " <> q) | isSecurity (crCommodity r), Just q <- [quoteSym r] ]
+    -- held and changed amounts: securities in shares, currencies with their symbol
+    units r q
+      | isSecurity (crCommodity r) = fmtUnits f "sh" (crCommodity r) q
+      | otherwise = fmtNative f (amt (crCommodity r) q)
+    heldCell r = one (units r (crHeld r))
     changeCell r
       | crChange r == 0 = [Seg dim "0"]
       | otherwise =
-          let t = (if crChange r > 0 then "+" else "") <> fmtNative f (amt (crCommodity r) (crChange r))
+          let t = (if crChange r > 0 then "+" else "") <> units r (crChange r)
           in [Seg (signStyle g t) t]
     priceCell r
-      | crIsBase r = [Seg dim ("1 " <> dash <> " base")]
+      | crIsBase r = one "1"
       | otherwise = case crPrice r of
           Just i | valued -> one (fmtRate (riRate i))
           _ -> dimD
+    -- under the base price, dimmed: the price in the commodity it is priced via
+    priceVia r = case (crViaPrice r, crPrice r) of
+      (Just (x, q), Just _) | valued -> Just [Seg dim (fmtNative f (amt x q))]
+      _ -> Nothing
     deltaCell r = case crDeltaPct r of
       Just x | priced r -> [pctSeg x]
       _ -> dimD
     sparkCell r
-      | crIsBase r = []
+      | crIsBase r = [Seg dim "base"]
       | not valued = dimD
       | otherwise = [Seg plain (sparkline g (map (fmap realToFrac) (crSpark r)))]
     valueCell r = case crValue r of
       Just q | valued -> one (valueT q)
       _ -> dimD
-    shareCell r = case crShare r of
-      Just x | valued -> [Seg dim (fmtPct f x)]
+    -- share: a thin bar scaled to the largest share, then the percentage
+    shareBarW = 6
+    maxShare = maximum (0 : [x | r <- rows, Just x <- [crShare r]])
+    pctW = maximum (0 : [textW (fmtPct f x) | r <- rows, Just x <- [crShare r]])
+    shareCell bar r = case crShare r of
+      Just x | valued ->
+        [ sg | bar, sg <- thinBar ctx RDim shareBarW (if maxShare > 0 then x / maxShare else 0) ++ [spaces 1] ]
+          ++ [Seg dim (T.justifyRight pctW ' ' (fmtPct f x))]
       _ -> dimD
     gainCell r = case crGain r of
       Just q | priced r -> let t = fmtQty f q in [Seg (signStyle g t) t]
@@ -123,28 +147,34 @@ commoditiesDoc ctx m = ViewDoc
             SrcInferred -> "inferred" <> gSep g <> fmtDayMon (riDate i)
             SrcVia x -> "via " <> codeOf x <> gSep g <> fmtDayMon (riDate i)]
 
-    allCols =
+    allCols bar =
       [ Col CComm "commodity" AL commCell, Col CHeld "held" AR heldCell
       , Col CChange thisWord AR changeCell, Col CPrice (withBase "price") AR priceCell
       , Col CDelta deltaHead AR deltaCell, Col CSpark "12 months" AL sparkCell
-      , Col CValue (withBase "value") AR valueCell, Col CShare "share" AR shareCell
+      , Col CValue (withBase "value") AR valueCell, Col CShare "share" AL (shareCell bar)
       , Col CGain "unreal. gain" AR gainCell, Col CSource "price source" AL sourceCell ]
     tierDrops
       | tier == Tier80 = [CSource, CSpark, CGain]
       | tier <= Tier120 = [CSource]
       | otherwise = []
+    -- the table sits in a box: a border and a space of padding on each side
+    iw = w - 4
     -- further columns dropped, in order, while the table is too wide
     needDrops = [CSource, CSpark, CGain, CChange, CDelta, CShare]
     colWidth c = maximum (textW (cHead c) : map (segsW . cCell c) rows
+      ++ [segsW ss | cId c == CPrice, Just ss <- map priceVia rows]
       ++ [segsW (totalCell c) | cId c `elem` [CValue, CGain, CSource]])
     naturalW cs = sum (map colWidth cs) + 2 * (length cs - 1)
     fitCols cs = case [d | d <- needDrops, d `elem` map cId cs] of
-      (d : _) | naturalW cs > w -> fitCols (filter ((/= d) . cId) cs)
+      (d : _) | naturalW cs > iw -> fitCols (filter ((/= d) . cId) cs)
       _ -> cs
-    cols = fitCols (filter ((`notElem` tierDrops) . cId) allCols)
+    chosen bar = fitCols (filter ((`notElem` tierDrops) . cId) (allCols bar))
+    -- the share bar only where it costs no column
+    shareBar = map cId (chosen True) == map cId (chosen False)
+    cols = chosen shareBar
     widths = map colWidth cols
     nCols = length cols
-    gap = max 2 (min 4 ((w - sum widths) `div` max 1 (nCols - 1)))
+    gap = max 2 (min 6 ((iw - sum widths) `div` max 1 (nCols - 1)))
     hasCol i = i `elem` map cId cols
 
     cellSegs a cw ss = case a of
@@ -153,13 +183,12 @@ commoditiesDoc ctx m = ViewDoc
     rowSegs :: [[Seg]] -> [Seg]
     rowSegs cells = concat (zipWith3 (\(c, cw) ss i -> (if i > 0 then [spaces gap] else []) ++ cellSegs (cAlign c) cw ss)
                                      (zip cols widths) cells [0 :: Int ..])
-    tableW = sum widths + gap * (nCols - 1)
-    ruleLine = [Seg (st RRule) (T.replicate (min w tableW) (T.singleton (bxH (gBox g))))]
     headLine = rowSegs [ [Seg dim (cHead c)] | c <- cols ]
     dataLine r = rowSegs [ cCell c r | c <- cols ]
-    groupLines name rs
-      | null rs = []
-      | otherwise = ([Seg dim name], False) : [ (dataLine r, isCursor r) | r <- rs ]
+    -- a price via another commodity puts that price on a second line
+    viaLine r = case priceVia r of
+      Just ss | hasCol CPrice -> [rowSegs [ if cId c == CPrice then ss else [] | c <- cols ]]
+      _ -> []
 
     -- totals: counts span the columns between commodity and value
     plural n one' many = T.pack (show n) <> " " <> (if n == 1 then one' else many)
@@ -190,16 +219,30 @@ commoditiesDoc ctx m = ViewDoc
           staleWarn = if cmStaleCount m > 0 then st RWarn else dim
       in [main] ++ [ [spaces (firstW + gap), Seg staleWarn staleT] | not (hasCol CSource), not staleInSpan ]
 
-    tagged =
-      [(headLine, False), (ruleLine, False)]
-        ++ groupLines "CURRENCIES" (cmCurrencies m)
-        ++ groupLines "SECURITIES" (cmSecurities m)
-        ++ [(ruleLine, False)]
-        ++ [ (l, False) | l <- totalLines ]
-    body = padTo w (vcat [ line ss | (ss, _) <- tagged ])
-    cursorRow
-      | interactive = lookup True (zip (map snd tagged) [0 ..])
-      | otherwise = Nothing
+    -- * The table box: a rule between rows, group headers on the panel tint
+    edgeS = Seg (st RRule) (T.singleton (bxV bx))
+    inBox ss = Line ([edgeS, spaces 1] ++ ss ++ [spaces (iw - segsW ss + 1), edgeS])
+    hRule l r = Line [Seg (st RRule) (T.singleton l <> T.replicate (w - 2) (T.singleton (bxH bx)) <> T.singleton r)]
+    groupLine name = Line [edgeS, Seg (onBg RPanel 100 dim) (" " <> name <> T.replicate (iw + 1 - textW name) " "), edgeS]
+    group name rs =
+      [ (False, [groupLine name]) | not (null rs) ]
+        ++ [ (isCursor r, map inBox (dataLine r : viaLine r)) | r <- rs ]
+    items :: [(Bool, [Line])]
+    items =
+      [(False, [inBox headLine])]
+        ++ group "CURRENCIES" (cmCurrencies m)
+        ++ group "SECURITIES" (cmSecurities m)
+        ++ [(False, map inBox totalLines)]
+    -- the body line of each item's first line: one rule above each item
+    starts = scanl (\o (_, ls) -> o + length ls + 1) 1 items
+    table = Block w ([hRule (bxTL bx) (bxTR bx)] ++ intercalate [hRule (bxLT bx) (bxRT bx)] (map snd items) ++ [hRule (bxBL bx) (bxBR bx)])
+    -- the cursor row: its first and last lines
+    cursorSpan = listToMaybe [ (o, o + length ls - 1) | ((True, ls), o) <- zip items starts ]
+    body = case cursorSpan of
+      Just (o, e) -> cursorRect (o - 1, 0) (e + 1, w - 1) table
+      Nothing -> table
+    cursorRow = fst <$> cursorSpan
+    cursorLast = (+ 1) . snd <$> cursorSpan
 
     -- * Bottom panels
     full = tier == TierFull

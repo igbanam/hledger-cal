@@ -14,7 +14,8 @@ import Cal.Model.Commodities (commoditiesModel)
 import Cal.Types (Cursor (..), defaultCursor)
 import Cal.View.Commodities (commoditiesDoc)
 import Cal.View.Types
-import Support (edgePath, envFor)
+import Cal.Theme (Role (..))
+import Support (cellStyles, cursorCells, edgePath, envFor)
 
 oct, edge :: [String]
 oct = ["--commodities", "-p", "2026-10"]
@@ -74,7 +75,7 @@ unit_checks = do
   assertBool "title" ("Commodities  October 2026 · held at 31 Oct" `T.isInfixOf` t)
   assertBool "headings" (hasLine t ["commodity", "held", "this month", "price ₦", "Δ mo", "12 months", "value ₦", "share", "unreal. gain", "price source"])
   assertBool "groups" (hasLine t ["CURRENCIES"] && hasLine t ["SECURITIES"])
-  assertBool "base row" (hasLine t ["₦ NGN", "1 — base"])
+  assertBool "base row" (hasLine t ["₦ NGN base", " 1 ", " — ", " base "])
   assertBool "mtnn" (hasLine t ["MTNN", "630,000", "P · 31 Oct"])
   assertBool "voo" (hasLine t ["VOO", "2,604,000", "via USD · 31 Oct"])
   assertBool "usd inferred" (hasLine t ["$ USD", "$2,500.00", "inferred · 31 Oct"])
@@ -106,10 +107,10 @@ unit_edge :: Assertion
 unit_edge = do
   t <- plainText . snd <$> render edge defaultCursor 140 False
   assertBool "btc unpriced" (hasLine t ["BTC", "no price"])
-  -- the BTC row's cells, split on runs of two or more spaces
-  let btc = [ cells l | l <- T.lines t, "BTC " `T.isPrefixOf` l ]
-      cells l = filter (not . T.null) (map T.strip (T.splitOn "  " l))
-  btc @?= [["BTC", "−0.01 BTC", "−0.01 BTC", "—", "—", "············", "—", "—", "—", "no price"]]
+  -- the BTC row's cells inside the table box, split on runs of two or more spaces
+  let btc = [ cells l | l <- T.lines t, "│ BTC  " `T.isPrefixOf` l ]
+      cells l = filter (not . T.null) (map T.strip (T.splitOn "  " (T.filter (/= '│') l)))
+  btc @?= [["BTC", "−0.01 sh", "−0.01 sh", "—", "—", "············", "—", "—", "—", "no price"]]
   assertBool "total unpriced" (hasLine t ["total", "1 unpriced", "0 stale prices"])
 
 unit_ascii :: Assertion
@@ -126,3 +127,101 @@ unit_cursor = do
     Just r -> assertBool "cursor on VOO" ("VOO" `T.isInfixOf` (T.lines (plainText (vdBody d)) !! r))
   (d', _) <- render oct vooCursor 140 False
   vdCursorRow d' @?= Nothing
+
+
+-- | The table: one box, full width, at every tier, with a rule between rows.
+unit_tableBox :: Assertion
+unit_tableBox = mapM_ check [200, 140, 120, 100, 80]
+  where
+    check w = do
+      (d, _) <- render oct vooCursor w False
+      let ls = T.lines (plainText (vdBody d))
+          tag = "width " ++ show w ++ ": "
+      let ends l = (T.take 1 l, T.takeEnd 1 l)
+      map ends (take 1 ls) @?= [("┌", "┐")]
+      map ends (take 1 (reverse ls)) @?= [("└", "┘")]
+      assertBool (tag ++ "edges") (all (\l -> ends l `elem` [("│", "│"), ("├", "┤")]) (drop 1 (take (length ls - 1) ls)))
+      assertBool (tag ++ "full width") (all ((== w) . textW) ls)
+      -- every row is closed by a rule, NGN's and USD's included
+      let rowAt k = [ i | (i, l) <- zip [0 :: Int ..] ls, k `T.isPrefixOf` T.drop 2 l ]
+      case (rowAt "₦ NGN", rowAt "$ USD", rowAt "total") of
+        ([n], [u], [t]) -> do
+          u @?= n + 2
+          assertBool (tag ++ "rule between") ("├" `T.isPrefixOf` (ls !! (n + 1)))
+          assertBool (tag ++ "rule above total") ("├" `T.isPrefixOf` (ls !! (t - 1)))
+        other -> assertFailure (tag ++ "rows not found: " ++ show other)
+
+-- | Group headers sit on the panel tint, border to border; data rows do not.
+unit_groupTint :: Assertion
+unit_groupTint = do
+  (d, _) <- render oct vooCursor 140 False
+  let rowsS = cellStyles (vdBody d)
+      text r = T.pack (map fst r)
+      inner r = drop 1 (take (length r - 1) r)
+      grp = [ r | r <- rowsS, any (`T.isInfixOf` text r) ["CURRENCIES", "SECURITIES"] ]
+      usd = [ r | r <- rowsS, "$ USD" `T.isInfixOf` text r ]
+  length grp @?= 2
+  assertBool "group cells tinted" (all (all ((== Just (RPanel, 100)) . stBg . snd) . inner) grp)
+  assertBool "group label dim" (all (\r -> all ((== RDim) . stRole . snd) (inner r)) grp)
+  assertBool "data rows untinted" (all (all ((== Nothing) . stBg . snd)) usd)
+
+unit_rowCells :: Assertion
+unit_rowCells = do
+  (d, _) <- render oct vooCursor 140 False
+  let ls = T.lines (plainText (vdBody d))
+      after k = case dropWhile (not . (k `T.isInfixOf`)) ls of
+        (_ : n : _) -> n
+        _ -> ""
+  assertBool "base tag" (hasLine (T.unlines ls) ["₦ NGN base"])
+  assertBool "voo quote symbol and shares" (hasLine (T.unlines ls) ["VOO $", "3 sh", "868,000.00"])
+  assertBool "mtnn quote symbol and shares" (hasLine (T.unlines ls) ["MTNN ₦", "1,500 sh", "+500 sh"])
+  -- the native price, alone on VOO's second line, under the base price
+  T.words (T.filter (/= '│') (after "VOO $")) @?= ["$560.00"]
+  let col k l = T.length (fst (T.breakOn k l))
+      vooL = T.concat (take 1 (filter ("VOO $" `T.isInfixOf`) ls))
+  col "$560.00" (after "VOO $") + T.length "$560.00" @?= col "868,000.00" vooL + T.length "868,000.00"
+  -- currencies keep their symbol; only one line each
+  assertBool "usd held" (hasLine (T.unlines ls) ["$ USD", "$2,500.00"])
+  assertBool "usd one line" ("├" `T.isPrefixOf` after "$ USD")
+
+-- | A thin bar before the share, scaled to the largest share.
+unit_shareBar :: Assertion
+unit_shareBar = do
+  t <- plainText . vdBody . fst <$> render oct vooCursor 140 False
+  assertBool "largest share fills the bar" (hasLine t ["₦ NGN", "━━━━━━ 49.4%"])
+  assertBool "half the largest, half the bar" (hasLine t ["$ USD", "━━━─── 23.7%"])
+  assertBool "small but non-zero" (hasLine t ["KD KWD", "━─────  0.6%"])
+  t80 <- plainText . vdBody . fst <$> render oct vooCursor 80 False
+  assertBool "no bar where it would cost a column" (not ("━" `T.isInfixOf` t80) && hasLine t80 ["$ USD", "+$100.00", "23.7%"])
+
+-- | A gently rising price reads as a staircase (min–max per row).
+unit_sparkStaircase :: Assertion
+unit_sparkStaircase = do
+  t <- plainText . vdBody . fst <$> render oct vooCursor 140 False
+  let usd = T.concat (take 1 (filter ("$ USD" `T.isInfixOf`) (T.lines t)))
+  assertBool ("USD staircase: " ++ T.unpack usd) ("··▁▁▂▃▃▃▄▅▅█" `T.isInfixOf` usd)
+
+-- | S4: the cursor row is boxed in the accent at the table's rules; no label is reversed.
+unit_cursorBorder :: Assertion
+unit_cursorBorder = mapM_ check [140, 80]
+  where
+    check w = do
+      (d, _) <- render oct vooCursor w True
+      let body = vdBody d
+          cs = cursorCells body
+          ls = T.lines (plainText body)
+          rows = [ r | (r, _, _) <- cs ]
+          r0 = minimum rows
+          r1 = maximum rows
+          tag = "width " ++ show w ++ ": "
+      assertBool (tag ++ "drawn") (not (null cs))
+      assertBool (tag ++ "border glyphs only") (all (\(_, _, ch) -> ch `elem` ("─│┌┐└┘├┤" :: String)) cs)
+      assertBool (tag ++ "VOO inside") ("VOO $" `T.isInfixOf` (ls !! (r0 + 1)))
+      -- both of VOO's lines are inside: rule, VOO, $560.00, rule
+      r1 - r0 @?= 3
+      vdCursorRow d @?= Just (r0 + 1)
+      vdCursorLast d @?= Just r1
+      length cs @?= 2 * w + 2 * (r1 - r0 - 1)
+      assertBool (tag ++ "no reversed cell") (not (any (stInverse . snd) (concat (cellStyles body))))
+      (d', _) <- render oct vooCursor w False
+      cursorCells (vdBody d') @?= []
