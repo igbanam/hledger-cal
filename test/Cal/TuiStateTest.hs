@@ -7,7 +7,8 @@ import Cal.Journal (journalDataRange)
 import Cal.Model.Common (Env (..))
 import Cal.Model.Commodities (CommodityRow (..), CommoditiesModel (..), commoditiesModel)
 import Cal.Theme (Role (..), nearest256, roleRGB, tintRGB)
-import Cal.Tui.App (appStateFor, attrMapFor, bgAttr, blockWidget, calAttrMap, clampRegisterScroll, cursorSpan, draw, styleAttr)
+import Cal.Tui.App (appStateFor, attrMapFor, bgAttr, blockWidget, calAttrMap, clampRegisterScroll, cursorSpan, draw, pickerBlock, styleAttr)
+import Cal.Glyphs (glyphsFor)
 import Cal.Model.Month (monthModel)
 import Cal.View.Month (monthDoc)
 import Cal.View.Types (ViewDoc (..), mkRenderCtx)
@@ -56,11 +57,71 @@ unit_faceKeepsDate = do
   let s = run s0 [CmdMove 0 3, CmdFace FaceWeek]
   (sFace (st s), focus s) @?= (FaceWeek, d 2026 10 22)
 
-unit_cycleCurrency :: IO ()
-unit_cycleCurrency = do
+-- | Press keys through 'keyCmd', as the app does.
+press :: UiState -> [Vty.Key] -> UiState
+press = foldl (\u k -> maybe u (\c -> fst (step t0 c u)) (keyCmd (usPane u) k []))
+
+-- | The picker lists the base (marked default), the other currencies in
+-- chip order, then native, with the current choice highlighted.
+unit_pickerOpens :: IO ()
+unit_pickerOpens = do
   s0 <- mk ["-M", "-p", "2026-10"]
-  map (sValuation . st) (scanl (\s c -> fst (step t0 c s)) s0 (replicate 7 CmdCycleCurrency))
-    @?= map ValuedIn ["₦", "$", "Dh", "€", "₹", "KD"] ++ [Native, ValuedIn "₦"]
+  let entries = pickerEntries (usEnv s0)
+  map peValuation entries @?= map ValuedIn ["₦", "$", "Dh", "€", "₹", "KD"] ++ [Native]
+  map peDefault entries @?= [True, False, False, False, False, False, False]
+  map peLabel entries @?= ["₦ NGN", "$ USD", "Dh AED", "€ EUR", "₹ INR", "KD KWD", "native"]
+  usPane (press s0 [Vty.KChar 'c']) @?= PanePicker "" 0 PaneNone
+  let euro = s0 { usEnv = (usEnv s0) { envSettings = (envSettings (usEnv s0)) { sValuation = ValuedIn "€" } } }
+  usPane (press euro [Vty.KChar 'c']) @?= PanePicker "" 3 PaneNone
+
+-- | Typing filters on code, symbol or label (case-insensitive); ⏎ picks
+-- and revalues in place.
+unit_pickerFilterPick :: IO ()
+unit_pickerFilterPick = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let open = press s0 (map Vty.KChar "cus")
+  usPane open @?= PanePicker "us" 0 PaneNone
+  map peLabel (pickerMatches "us" (pickerEntries (usEnv s0))) @?= ["$ USD"]
+  map peLabel (pickerMatches "€" (pickerEntries (usEnv s0))) @?= ["€ EUR"]
+  map peLabel (pickerMatches "NAT" (pickerEntries (usEnv s0))) @?= ["native"]
+  let s = press open [Vty.KEnter]
+  (usPane s, sValuation (st s), focus s) @?= (PaneNone, ValuedIn "$", d 2026 10 1)
+
+-- | ↑/↓ move within the matches (clamped); Backspace edits the filter,
+-- keeping the highlighted entry when it still matches.
+unit_pickerMoveBackspace :: IO ()
+unit_pickerMoveBackspace = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let s = press s0 [Vty.KChar 'c', Vty.KDown, Vty.KDown, Vty.KUp]
+  usPane s @?= PanePicker "" 1 PaneNone
+  usPane (press s0 [Vty.KChar 'c', Vty.KUp]) @?= PanePicker "" 0 PaneNone
+  usPane (press s0 (Vty.KChar 'c' : replicate 9 Vty.KDown)) @?= PanePicker "" 6 PaneNone
+  -- "d" matches $ USD, Dh AED and KD KWD; highlight Dh, then widen
+  let f = press s0 [Vty.KChar 'c', Vty.KChar 'd', Vty.KDown]
+  usPane f @?= PanePicker "d" 1 PaneNone
+  usPane (press f [Vty.KBS]) @?= PanePicker "" 2 PaneNone
+  sValuation (st (press f [Vty.KEnter])) @?= ValuedIn "Dh"
+
+-- | Esc cancels with no change; with nothing matching, ⏎ does nothing.
+unit_pickerCancelEmpty :: IO ()
+unit_pickerCancelEmpty = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let c = press s0 [Vty.KChar 'c', Vty.KDown, Vty.KEsc]
+  (usPane c, sValuation (st c)) @?= (PaneNone, ValuedIn "₦")
+  let e = press s0 (Vty.KChar 'c' : map Vty.KChar "zzz" ++ [Vty.KEnter])
+  pickerMatches "zzz" (pickerEntries (usEnv s0)) @?= []
+  (usPane e, sValuation (st e)) @?= (PanePicker "zzz" 0 PaneNone, ValuedIn "₦")
+  usPane (press e [Vty.KDown, Vty.KUp]) @?= PanePicker "zzz" 0 PaneNone
+
+-- | While the picker is open, h/j/k/l (and every other letter) go to the
+-- filter; only the arrows move.
+unit_pickerLettersFilter :: IO ()
+unit_pickerLettersFilter = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let s = press s0 (Vty.KChar 'c' : map Vty.KChar "hjklqcv/?[")
+  (usPane s, focus s, sValuation (st s), sRateAt (st s)) @?= (PanePicker "hjklqcv/?[" 0 PaneNone, d 2026 10 1, ValuedIn "₦", AtPeriodEnd)
+  map (\k -> keyCmd (PanePicker "" 0 PaneNone) (Vty.KChar k) []) "hjkl"
+    @?= map (Just . CmdPickerChar) "hjkl"
 
 unit_cycleRate :: IO ()
 unit_cycleRate = do
@@ -145,11 +206,13 @@ unit_reloadRecomputesRange = do
   let s = applyReload t0 (Right j) s0
   sDataRange (st s) @?= journalDataRange (sToday (st s)) j
 
-unit_nativeCycleToFirst :: IO ()
-unit_nativeCycleToFirst = do
+-- | In native mode the picker opens on native, the last entry.
+unit_pickerNative :: IO ()
+unit_pickerNative = do
   s0 <- mk ["-M", "-p", "2026-10"]
   let n = s0 { usEnv = (usEnv s0) { envSettings = (envSettings (usEnv s0)) { sValuation = Native } } }
-  sValuation (st (run n [CmdCycleCurrency])) @?= ValuedIn "₦"
+  usPane (press n [Vty.KChar 'c']) @?= PanePicker "" 6 PaneNone
+  sValuation (st (press n [Vty.KChar 'c', Vty.KUp, Vty.KEnter])) @?= ValuedIn "KD"
 
 unit_escNothing :: IO ()
 unit_escNothing = do
@@ -174,20 +237,24 @@ unit_attrMapCoversRoles = do
   assertBool "attr name is defined in calAttrMap" (expected /= Vty.defAttr)
   concatMap (attrsOf "x") (Vty.picLayers pic) @?= [expected]
 
-unit_registerCycleCurrency :: IO ()
-unit_registerCycleCurrency = do
+-- | c opens the picker from the register pane too (spec §10.3); picking
+-- or cancelling returns to the pane, scroll kept.
+unit_registerPicker :: IO ()
+unit_registerPicker = do
   s0 <- mk ["-M", "-p", "2026-10"]
-  let r = run s0 [CmdEnter]
-  cmd <- maybe (assertFailure "c unmapped in register") pure (keyCmd (usPane r) (Vty.KChar 'c') [])
-  let s = run r [cmd]
-  (usPane r, usPane s, sValuation (st s) /= sValuation (st r)) @?= (PaneRegister 0, PaneRegister 0, True)
+  let r = run s0 [CmdEnter, CmdScroll 2]
+      o = press r [Vty.KChar 'c']
+      s = press o (map Vty.KChar "us" ++ [Vty.KEnter])
+      e = press o [Vty.KDown, Vty.KEsc]
+  usPane o @?= PanePicker "" 0 (PaneRegister 2)
+  (usPane s, sValuation (st s)) @?= (PaneRegister 2, ValuedIn "$")
+  (usPane e, sValuation (st e)) @?= (PaneRegister 2, ValuedIn "₦")
 
 unit_registerFilterReturns :: IO ()
 unit_registerFilterReturns = do
   s0 <- mk ["-M", "-p", "2026-10"]
   let r = run s0 [CmdEnter, CmdScroll 2]
-      press u k = maybe u (\c -> fst (step t0 c u)) (keyCmd (usPane u) k [])
-      s = foldl press r ([Vty.KChar '/'] ++ map Vty.KChar "acct:fuel" ++ [Vty.KEnter])
+      s = press r ([Vty.KChar '/'] ++ map Vty.KChar "acct:fuel" ++ [Vty.KEnter])
       e = run r [CmdFilterOpen, CmdFilterChar 'x', CmdEsc]
   (usPane s, sQueryArgs (st s), usPane e) @?= (PaneRegister 0, ["acct:fuel"], PaneRegister 2)
 
@@ -437,3 +504,45 @@ unit_filterDateSetsPeriod = do
   let w = run s0 [CmdFace FaceWeek]
       s' = run w (CmdFilterOpen : map CmdFilterChar "date:2026-10-14" ++ [CmdFilterSubmit])
   (sFace (st s'), focus s', sQueryArgs (st s'), sQuery (st s')) @?= (FaceWeek, d 2026 10 14, [], Any)
+
+-- | The picker box: titled "value in", the prompt, the matches with the
+-- highlighted one in reverse video and the base tagged default, the key
+-- hint; a plain (rule) border, never the cursor colour.
+unit_pickerBlock :: IO ()
+unit_pickerBlock = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let entries = pickerEntries (usEnv s0)
+      b = pickerBlock (glyphsFor GlyphsUtf8) "▏" entries "" 1
+      ls = T.lines (Doc.plainText b)
+      cells = concat [ [ (c, sty) | c <- T.unpack t ] | Doc.Line ss <- Doc.bLines b, Doc.Seg sty t <- ss ]
+      border = [ sty | (c, sty) <- cells, c `elem` ("┌┐└┘│─" :: String) ]
+      styleOf needle = [ sty | Doc.Line ss <- Doc.bLines b, Doc.Seg sty t <- ss, needle `T.isInfixOf` t ]
+  assertBool (show ls) ("┌─value in" `T.isPrefixOf` (ls !! 0))
+  assertBool (show ls) ("│ ▸ ▏" `T.isPrefixOf` (ls !! 1))
+  assertBool (show ls) ("₦ NGN" `T.isInfixOf` (ls !! 3) && "default │" `T.isSuffixOf` (ls !! 3))
+  assertBool (show ls) ("↑↓ ⏎ pick · esc" `T.isInfixOf` (ls !! (length ls - 2)))
+  assertBool "every line one width" (all ((== Doc.bWidth b) . Doc.textW) ls)
+  map Doc.stInverse (styleOf "$ USD") @?= [True]
+  map Doc.stInverse (styleOf "₦ NGN") @?= [False]
+  map Doc.stRole (styleOf "default") @?= [RDim]
+  assertBool "border in the rule role" (not (null border) && all ((== RRule) . Doc.stRole) border)
+  -- filtered: the box keeps its size
+  let nb = pickerBlock (glyphsFor GlyphsUtf8) "▏" entries "us" 0
+  (Doc.bWidth nb, length (Doc.bLines nb)) @?= (Doc.bWidth b, length (Doc.bLines b))
+  -- ASCII: > prompt, ASCII box and key names
+  let a = T.lines (Doc.plainText (pickerBlock (glyphsFor GlyphsAscii) "_" entries "us" 0))
+  assertBool (show a) ("+-value in" `T.isPrefixOf` (a !! 0) && "| > us_" `T.isPrefixOf` (a !! 1))
+  assertBool (show a) ("up/down enter pick . esc" `T.isInfixOf` (a !! (length a - 2)))
+
+-- | On screen at 140×45 the picker is drawn over the view, and over the
+-- register pane when opened from there.
+unit_pickerOnScreen :: IO ()
+unit_pickerOnScreen = do
+  s0 <- mk ["-M", "-p", "2026-10-30"]
+  let screen us = concatMap imageRows (Vty.picLayers (renderWidget (Just calAttrMap) (draw (appStateFor us t0)) (140, 45)))
+      has t us = any (t `isInfixOf`) (screen us)
+      o = press s0 (map Vty.KChar "cus")
+  assertBool "picker drawn" (has "value in" o && has "▸ us" o && has "$ USD" o)
+  assertBool "no picker once picked" (not (has "value in" (press o [Vty.KEnter])))
+  let r = press s0 [Vty.KEnter, Vty.KChar 'c']
+  assertBool "picker over the register" (has "value in" r && has "Register" r)

@@ -15,6 +15,7 @@ module Cal.Tui.App
   , AppState
   , appStateFor
   , draw
+  , pickerBlock
   ) where
 
 import Control.Concurrent (forkIO, threadDelay)
@@ -164,7 +165,7 @@ layout now us w h = do
       keysFooter = footerBlock ctx (vdKeys doc) (vdLegend doc)
       rest = vdBottom doc
       footer = case usPane us of
-        PaneFilter draft _ -> line [Seg (st RDim) "/ ", Seg (st RText) draft, Seg (st RCursor) cursorGlyph]
+        PaneFilter draft _ -> line [Seg (st RDim) "/ ", Seg (st RText) draft, Seg (st RCursor) (caretGlyph (envSettings env))]
         _ -> keysFooter
       topH = length (bLines (vdTop doc))
       regH = max 4 (h - topH - 1 - length (bLines footer))
@@ -173,7 +174,16 @@ layout now us w h = do
   pure (Layout ctx doc rest footer regH rows)
   where
     env = usEnv us
-    cursorGlyph = if sGlyphSet (envSettings env) == GlyphsAscii then "_" else "▏"
+
+-- | The text cursor at the end of a typed line.
+caretGlyph :: Settings -> T.Text
+caretGlyph s = if sGlyphSet s == GlyphsAscii then "_" else "▏"
+
+-- | The pane drawn on the screen: the one the picker came from while it is open.
+screenPane :: Pane -> Pane
+screenPane p = case p of
+  PanePicker _ _ ret -> ret
+  _ -> p
 
 -- | Keep the register scroll offset within its rows.
 clampScroll :: Layout -> UiState -> UiState
@@ -192,7 +202,7 @@ layoutFor (AppState us now cache) w h = case cache of
   _ -> layout now us w h
 
 draw :: AppState -> [Widget Name]
-draw as@(AppState us _ _) = [helpLayer | usPane us == PaneHelp] ++ [screen]
+draw as@(AppState us _ _) = [pickerLayer | PanePicker {} <- [usPane us]] ++ [helpLayer | usPane us == PaneHelp] ++ [screen]
   where
     screen = Widget Greedy Greedy $ do
       c <- getContext
@@ -218,7 +228,7 @@ draw as@(AppState us _ _) = [helpLayer | usPane us == PaneHelp] ++ [screen]
                     (inside, after) = splitAt (hi - lo + 1) rest'
                 in map lineWidget before ++ [visible (vBox (map lineWidget inside))] ++ map lineWidget after
             filler = blockWidget (Block 0 (replicate (room - bodyH) (Line [])))
-            middle = case usPane us of
+            middle = case screenPane (usPane us) of
               PaneRegister scroll ->
                 [ blockWidget (registerPane ctx (sFocus (rcSettings ctx)) (lyRegHeight ly) scroll (lyRegRows ly)) ]
               _ -> [body, blockWidget blankLine]
@@ -233,13 +243,40 @@ draw as@(AppState us _ _) = [helpLayer | usPane us == PaneHelp] ++ [screen]
           sep = gSep gl
           enter = gKeyEnter gl
           general = T.intercalate sep
-            [ "Y Q M W C view", "Tab next view", "[ ] period", "c currency", "v rates at"
+            [ "Y Q M W C view", "Tab next view", "[ ] period", "c pick currency", "v rates at"
             , "/ filter", enter <> " open", "Esc back", "g reload", "? help", "q quit" ]
           faceKeys = case layoutFor as w (availHeight c) of
             Just ly -> T.intercalate sep [ k <> " " <> l | (k, l) <- vdKeys (lyDoc ly) ]
             Nothing -> ""
       render $ centerLayer $ borderWithLabel (txt "keys") $ hLimit (max 20 (min 100 (w - 4))) $
         padLeftRight 1 $ vBox ([txtWrap general] ++ [txtWrap faceKeys | not (T.null faceKeys)])
+    pickerLayer = case usPane us of
+      PanePicker f i _ ->
+        let s = envSettings (usEnv us)
+        in centerLayer (blockWidget (pickerBlock (glyphsFor (sGlyphSet s)) (caretGlyph s) (pickerEntries (usEnv us)) f i))
+      _ -> emptyWidget
+
+-- | The currency picker overlay: a box titled @value in@ holding the
+-- filter prompt, the matching entries (the highlighted one in reverse
+-- video, the default base tagged @default@) and the key hint. Its size
+-- comes from every entry, so it doesn't change as the filter narrows.
+pickerBlock :: Glyphs -> T.Text -> [PickerEntry] -> T.Text -> Int -> Block
+pickerBlock g caret entries f sel = boxed g (Just "value in") (inner + 4) (padded body)
+  where
+    tag = "default"
+    hint = gKeyUpDown g <> " " <> gKeyEnter g <> " pick" <> gSep g <> "esc"
+    prompt = [Seg (st RDim) (gPrompt g <> " "), Seg (st RText) f, Seg (st RCursor) caret]
+    labelW = maximum (0 : map (textW . peLabel) entries)
+    inner = maximum [20, labelW + 2 + textW tag, textW hint]
+    matches = pickerMatches f entries
+    row i e =
+      let hl x = if i == sel then inverse x else x
+          gap = inner - textW (peLabel e) - (if peDefault e then textW tag else 0)
+      in Line ([Seg (hl (st RText)) (peLabel e), Seg (hl (st RText)) (T.replicate gap " ")]
+               ++ [Seg (hl (st RDim)) tag | peDefault e])
+    rows = zipWith row [0 ..] matches ++ replicate (length entries - length matches) (Line [])
+    body = Block inner ([Line prompt, Line []] ++ rows ++ [Line [], Line [Seg (st RDim) hint]])
+    padded b = Block (inner + 2) [ Line (Seg (st RText) " " : ss ++ [Seg (st RText) " "]) | Line ss <- bLines (padTo inner b) ]
 
 -- | The body's rows on a screen @h@ rows tall (design S3): the top chrome
 -- and a blank row, the body viewport, a blank row, the panels and a blank

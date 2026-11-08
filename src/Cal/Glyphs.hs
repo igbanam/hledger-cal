@@ -29,6 +29,7 @@ data Glyphs = Glyphs
   , gColEighths :: ![Char]  -- ^ lower eighths for the top of a column bar (none in ASCII)
   , gHairline :: !Char  -- ^ a column bar too short to show one eighth
   , gDashRule :: !Char  -- ^ dashed rule between items
+  , gPrompt :: !Text  -- ^ the currency picker's filter prompt
   , gBox :: !BoxChars }
   deriving (Eq, Show)
 
@@ -42,7 +43,7 @@ glyphsFor GlyphsUtf8 = Glyphs
   , gKeyArrows = "←↑↓→", gKeyUpDown = "↑↓", gKeyLeftRight = "←→", gKeyEnter = "⏎", gDelta = "Δ"
   , gMixRank = "━═┅┄"
   , gBarThin = '━', gBarTrack = '━', gBarTrackPlain = '─', gBarPair = Just '▀'
-  , gColEighths = "▁▂▃▄▅▆▇", gHairline = '▁', gDashRule = '┄'
+  , gColEighths = "▁▂▃▄▅▆▇", gHairline = '▁', gDashRule = '┄', gPrompt = "▸"
   , gBox = BoxChars '─' '│' '┌' '┐' '└' '┘' '├' '┤' '┬' '┴' '┼' }
 glyphsFor GlyphsAscii = Glyphs
   { gFull = '#', gEighths = [], gSpark = "_.-~^", gSparkMissing = '.'
@@ -53,7 +54,7 @@ glyphsFor GlyphsAscii = Glyphs
   , gKeyArrows = "arrows", gKeyUpDown = "up/down", gKeyLeftRight = "left/right", gKeyEnter = "enter", gDelta = "delta"
   , gMixRank = "#=-."
   , gBarThin = '=', gBarTrack = '-', gBarTrackPlain = '-', gBarPair = Nothing
-  , gColEighths = [], gHairline = '_', gDashRule = '-'
+  , gColEighths = [], gHairline = '_', gDashRule = '-', gPrompt = ">"
   , gBox = BoxChars '-' '|' '+' '+' '+' '+' '+' '+' '+' '+' '+' }
 
 -- | Horizontal bar of @w@ cells filled to fraction @f@ (clamped 0..1); no padding.

@@ -4,6 +4,9 @@ module Cal.Tui.State
   , UiState (..)
   , Cmd (..)
   , Effect (..)
+  , PickerEntry (..)
+  , pickerEntries
+  , pickerMatches
   , initState
   , keyCmd
   , step
@@ -13,7 +16,7 @@ module Cal.Tui.State
   ) where
 
 import Cal.Cli (dropDateArgs, spanFocus)
-import Cal.Currency (codeOf)
+import Cal.Currency (chipLabel, codeOf, symbolOf)
 import Cal.Journal (journalDataRange)
 import Cal.Model.Commodities (CommodityRow (..), CommoditiesModel (..), commoditiesModel)
 import Cal.Model.Common (Env (..), mkEnv, withEnvSettings)
@@ -25,7 +28,7 @@ import Cal.Types
 import Cal.View.Types (Tier (..), tierFor)
 import Data.Char (isDigit, isSpace)
 import Data.List (elemIndex, isSuffixOf)
-import Data.Maybe (isJust)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time.Calendar (addDays, fromGregorian, toGregorian)
@@ -37,7 +40,9 @@ import Hledger.Query (Query (..), filterQuery, parseQuery, queryDateSpan, queryI
 import System.FilePath (takeFileName)
 
 -- | 'PaneFilter' carries the draft and the pane to return to on Enter/Esc.
-data Pane = PaneNone | PaneRegister !Int | PaneFilter !Text !Pane | PaneHelp
+-- 'PanePicker' is the currency picker: its filter text, the highlighted
+-- index into the entries matching it, and the pane to return to.
+data Pane = PaneNone | PaneRegister !Int | PaneFilter !Text !Pane | PanePicker !Text !Int !Pane | PaneHelp
   deriving (Eq, Show)
 
 -- | 'usWidth' is the terminal width the screen was last laid out for (0
@@ -48,9 +53,10 @@ data UiState = UiState
   , usBack :: ![(Face, Day)], usMessage :: !(Maybe (Text, UTCTime)), usWidth :: !Int }
 
 data Cmd
-  = CmdPeriod !Int | CmdFace !Face | CmdCycleFace !Int | CmdCycleCurrency | CmdCycleRate
+  = CmdPeriod !Int | CmdFace !Face | CmdCycleFace !Int | CmdCycleRate
   | CmdMove !Int !Int | CmdEnter | CmdEsc | CmdFilterOpen | CmdFilterChar !Char | CmdFilterBackspace
-  | CmdFilterSubmit | CmdReload | CmdHelp | CmdQuit | CmdScroll !Int
+  | CmdFilterSubmit
+  | CmdPickerOpen | CmdPickerChar !Char | CmdPickerBackspace | CmdPickerMove !Int | CmdPickerPick | CmdReload | CmdHelp | CmdQuit | CmdScroll !Int
   | CmdScrollEdge !Bool  -- ^ True = top (Home), False = bottom (End)
   deriving (Eq, Show)
 
@@ -72,7 +78,7 @@ keyCmd pane key mods = case pane of
     KChar 'C' -> Just (CmdFace FaceCommodities)
     KChar '\t' -> Just (CmdCycleFace 1)
     KBackTab -> Just (CmdCycleFace (-1))
-    KChar 'c' -> Just CmdCycleCurrency
+    KChar 'c' -> Just CmdPickerOpen
     KChar 'v' -> Just CmdCycleRate
     KChar 'h' -> Just (CmdMove (-1) 0)
     KChar 'l' -> Just (CmdMove 1 0)
@@ -102,10 +108,20 @@ keyCmd pane key mods = case pane of
     KPageDown -> Just (CmdScroll 10)
     KHome -> Just (CmdScrollEdge True)
     KEnd -> Just (CmdScrollEdge False)
-    KChar 'c' -> Just CmdCycleCurrency
+    KChar 'c' -> Just CmdPickerOpen
     KChar 'v' -> Just CmdCycleRate
     KChar '/' -> Just CmdFilterOpen
     KEnter -> Just CmdEsc
+    KEsc -> Just CmdEsc
+    _ -> Nothing
+  -- every printable key edits the filter, h/j/k/l included; only the
+  -- arrows move the highlight
+  PanePicker {} -> case key of
+    KChar ch | MCtrl `notElem` mods, MAlt `notElem` mods, ch /= '\t' -> Just (CmdPickerChar ch)
+    KBS -> Just CmdPickerBackspace
+    KUp -> Just (CmdPickerMove (-1))
+    KDown -> Just (CmdPickerMove 1)
+    KEnter -> Just CmdPickerPick
     KEsc -> Just CmdEsc
     _ -> Nothing
   PaneHelp -> case key of
@@ -149,9 +165,22 @@ step now cmd us = case cmd of
   CmdPeriod n -> done (refocus (stepFocus (sFace s) (sCommInterval s) n (sFocus s)) us)
   CmdFace f -> done (withSettings (\st -> st { sFace = f }) us)
   CmdCycleFace n -> done (withSettings (\st -> st { sFace = cycleFrom FaceYear faceOrder (sFace st) n }) us)
-  CmdCycleCurrency ->
-    let choices = map ValuedIn (currencyChoices (usEnv us)) ++ [Native]
-    in done (withSettings (\st -> st { sValuation = cycleFrom Native choices (sValuation st) 1 }) us)
+  CmdPickerOpen ->
+    let i = fromMaybe 0 (elemIndex (sValuation s) (map peValuation (pickerEntries (usEnv us))))
+    in done us { usPane = PanePicker "" i returnTo }
+  CmdPickerChar c -> done (onPicker (`T.snoc` c) us)
+  CmdPickerBackspace -> done (onPicker (\t -> if T.null t then t else T.init t) us)
+  CmdPickerMove n -> done $ case usPane us of
+    PanePicker f i ret ->
+      let count = length (pickerMatches f (pickerEntries (usEnv us)))
+      in us { usPane = PanePicker f (max 0 (min (count - 1) (i + n))) ret }
+    _ -> us
+  -- revalues in place and returns; with nothing matching, does nothing
+  CmdPickerPick -> done $ case usPane us of
+    PanePicker f i ret -> case drop i (pickerMatches f (pickerEntries (usEnv us))) of
+      (e : _) -> (withSettings (\st -> st { sValuation = peValuation e }) us) { usPane = ret }
+      [] -> us
+    _ -> us
   CmdCycleRate ->
     let next r = case r of
           AtPeriodEnd -> AtTxnDate
@@ -165,6 +194,7 @@ step now cmd us = case cmd of
       ((f, d) : rest) -> (withSettings (\st -> st { sFace = f, sFocus = d }) us) { usBack = rest }
       [] -> us
     PaneFilter _ ret -> us { usPane = ret }
+    PanePicker _ _ ret -> us { usPane = ret }
     _ -> us { usPane = PaneNone }
   CmdFilterOpen -> done us { usPane = PaneFilter (T.unwords (sQueryArgs s)) returnTo }
   CmdFilterChar c -> done (onDraft (`T.snoc` c) us)
@@ -187,6 +217,43 @@ step now cmd us = case cmd of
     afterSubmit ret = case ret of
       PaneRegister _ -> PaneRegister 0
       p -> p
+
+-- * Currency picker
+
+-- | One valuation choice in the picker; 'peDefault' marks the default base.
+data PickerEntry = PickerEntry { peValuation :: !Valuation, peLabel :: !Text, peDefault :: !Bool }
+  deriving (Eq, Show)
+
+-- | Every valuation choice: the default base, the other currencies in chip
+-- order, then native.
+pickerEntries :: Env -> [PickerEntry]
+pickerEntries env =
+  [ PickerEntry (ValuedIn c) (chipLabel c) (c == sDefaultBase (envSettings env)) | c <- currencyChoices env ]
+    ++ [PickerEntry Native "native" False]
+
+-- | The entries whose code, symbol or label contains the filter, ignoring case.
+pickerMatches :: Text -> [PickerEntry] -> [PickerEntry]
+pickerMatches f = filter matches
+  where
+    needle = T.toLower f
+    matches e = T.null needle || any (T.isInfixOf needle . T.toLower) (keys e)
+    keys e = peLabel e : case peValuation e of
+      ValuedIn c -> c : codeOf c : maybe [] pure (symbolOf c)
+      Native -> []
+
+-- | Edit the picker's filter, keeping the highlighted entry when it still
+-- matches, else highlighting the first match.
+onPicker :: (Text -> Text) -> UiState -> UiState
+onPicker f us = case usPane us of
+  PanePicker t i ret ->
+    let entries = pickerEntries (usEnv us)
+        t' = f t
+        was = take 1 (drop i (pickerMatches t entries))
+        i' = case was of
+          [e] -> fromMaybe 0 (elemIndex e (pickerMatches t' entries))
+          _ -> 0
+    in us { usPane = PanePicker t' i' ret }
+  _ -> us
 
 onDraft :: (Text -> Text) -> UiState -> UiState
 onDraft f us = case usPane us of
