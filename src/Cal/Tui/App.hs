@@ -186,14 +186,23 @@ draw as@(AppState us _ _) = [helpLayer | usPane us == PaneHelp] ++ [screen]
       Just ly ->
         let doc = lyDoc ly
             ctx = lyCtx ly
-            body = viewport BodyViewport Vertical $ vBox
+            bodyLines = bLines (vdBody doc)
+            rest = bLines (lyRest ly)
+            -- the panels sit one blank row under the body (design S3); the
+            -- footer stays at the bottom, the space left over goes above it
+            restH = if null rest then 0 else length rest + 1
+            room = max 1 (h - length (bLines (vdTop doc)) - 2 - restH - length (bLines (lyFooter ly)))
+            bodyH = min room (length bodyLines)
+            body = vLimit bodyH $ viewport BodyViewport Vertical $ vBox
               [ if Just i == vdCursorRow doc then visible (lineWidget l) else lineWidget l
-              | (i, l) <- zip [0 ..] (bLines (vdBody doc)) ]
+              | (i, l) <- zip [0 ..] bodyLines ]
+            filler = blockWidget (Block 0 (replicate (room - bodyH) (Line [])))
             middle = case usPane us of
               PaneRegister scroll ->
                 [ blockWidget (registerPane ctx (sFocus (rcSettings ctx)) (lyRegHeight ly) scroll (lyRegRows ly)) ]
               _ -> [body, blockWidget blankLine]
-                ++ concat [ [blockWidget (lyRest ly), blockWidget blankLine] | not (null (bLines (lyRest ly))) ]
+                ++ concat [ [blockWidget (lyRest ly), blockWidget blankLine] | not (null rest) ]
+                ++ [filler | room > bodyH]
         in vBox ([blockWidget (vdTop doc), blockWidget blankLine] ++ middle ++ [blockWidget (lyFooter ly)])
     helpLayer = Widget Fixed Fixed $ do
       c <- getContext
