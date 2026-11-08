@@ -8,9 +8,8 @@ import Cal.Types
 import Cal.Valuation (baseQty)
 import Data.Bifunctor (second)
 import Data.Time.Calendar (fromGregorian)
-import Hledger hiding (Interval (..), Span (..), WeekDay)
+import Hledger hiding (Interval (..), WeekDay)
 import Support
-import Test.Tasty.HUnit
 
 d :: Integer -> Int -> Int -> Day
 d = fromGregorian

@@ -127,4 +127,5 @@ benchmark startup
   type: exitcode-stdio-1.0
   main-is: Startup.hs
   hs-source-dirs: bench
-  build-depends: base, hledger-cal
+  ghc-options: -threaded -rtsopts
+  build-depends: base, hledger-cal, text, time, directory, hledger ==1.52.*, hledger-lib ==1.52.*

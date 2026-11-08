@@ -15,7 +15,7 @@ import qualified Data.Map.Strict as M
 import Data.Ord (Down (..), comparing)
 import Data.Text (Text)
 import Data.Time.Calendar (addDays)
-import Hledger hiding (Interval (..), Span (..), WeekDay)
+import Hledger hiding (Interval (..), WeekDay)
 
 data WeekDay = WeekDay
   { wdDay :: !Day, wdNet :: !Money, wdSpendFrac :: !(Maybe Double), wdTxns :: ![TxnBlock] }

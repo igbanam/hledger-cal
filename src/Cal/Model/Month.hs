@@ -14,7 +14,7 @@ import Cal.Valuation
 import Data.List (sortBy)
 import qualified Data.Map.Strict as M
 import Data.Ord (Down (..), comparing)
-import Hledger hiding (Interval (..), Span (..))
+import Hledger hiding (Interval (..))
 
 -- | dcForeign: the largest non-base commodity that day by |value|, its
 -- native sum, and the number of other non-base commodities.

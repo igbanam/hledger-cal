@@ -24,7 +24,7 @@ import qualified Data.Map.Strict as M
 import Data.Ord (Down (..), comparing)
 import Data.Text (Text)
 import qualified Data.Set as S
-import Hledger hiding (Interval (..), Span (..))
+import Hledger hiding (Interval (..))
 
 data Env = Env { envJournal :: !Journal, envSettings :: !Settings, envPrices :: !Prices }
 
@@ -88,11 +88,11 @@ summarize env vs = Kpis
     amt v = case base of
       Nothing -> vpNative v
       Just _ -> vpValue v
-    income = maSum (map amt incomeVs)
-    expenses = maSum (map amt expenseVs)
-    maum a b = maPlus a (negate b)
-    maPlus = (+)
-    maSum = sum
+    income = sumM (map amt incomeVs)
+    expenses = sumM (map amt expenseVs)
+    maum a b = plusM a (negate b)
+    plusM = (+)
+    sumM = sum
     ratio f = do
       b <- base
       let inc = baseQty b income
@@ -113,11 +113,11 @@ summarize env vs = Kpis
     cause = do
       b <- base
       let g = M.toList (M.fromListWith (+) [((c, grp), x) | (c, grp, x) <- fxs b])
-      if maybe True (== 0) fxTotal || null g
+      if maybe True (== 0) fxTotal
         then Nothing
-        else
-          let ((c, grp), x) = head (sortBy (comparing (Down . abs . snd)) g)
-          in Just (FxCause c grp x)
+        else case sortBy (comparing (Down . abs . snd)) g of
+          [] -> Nothing
+          (((c, grp), x) : _) -> Just (FxCause c grp x)
     commodities = case base of
       Nothing -> nub [c | v <- vs, Just c <- [nativeOf v]]
       Just b ->
