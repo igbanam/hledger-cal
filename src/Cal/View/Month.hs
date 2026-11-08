@@ -40,7 +40,7 @@ plural n one many = T.pack (show n) <> " " <> (if n == 1 then one else many)
 
 monthDoc :: RenderCtx -> MonthModel -> ViewDoc
 monthDoc ctx m = ViewDoc
-  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdCursorLast = Nothing
+  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdCursorLast = Nothing, vdStretch = Nothing
   , vdBottom = panels
   , vdKeys = keys, vdLegend = legend }
   where

@@ -42,8 +42,13 @@ mkRenderCtx env w interactive = do
 -- when set, is the last row of the item under the cursor, which the
 -- viewport keeps in view with it when the cursor box is too tall to show
 -- whole (Week: the selected transaction inside a long day column).
+-- 'vdStretch', when set, is @(i, l)@: on a screen taller than the body the
+-- TUI fills the spare rows with copies of @l@ before body row @i@ (Week:
+-- the day columns run down to the footer). Print has no height and
+-- ignores it.
 data ViewDoc = ViewDoc
   { vdTop :: !Block, vdBody :: !Block, vdCursorRow :: !(Maybe Int), vdCursorLast :: !(Maybe Int)
+  , vdStretch :: !(Maybe (Int, Line))
   , vdBottom :: !Block, vdKeys :: ![(Text, Text)], vdLegend :: !Block }
 
 -- | Top, body, bottom and the legend with one blank line between; empty

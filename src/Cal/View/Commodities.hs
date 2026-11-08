@@ -30,21 +30,9 @@ data Col = Col { cId :: !ColId, cHead :: !Text, cAlign :: !Align, cCell :: Commo
 data ColId = CComm | CHeld | CChange | CPrice | CDelta | CSpark | CValue | CShare | CGain | CSource
   deriving (Eq, Show)
 
--- | Word-wrap @t@ into lines of at most @n@ columns; continuation lines get @indent@.
-wrapWords :: Int -> Int -> Text -> [Text]
-wrapWords n indent t = case T.words t of
-  [] -> [""]
-  (x : xs) -> go x xs
-  where
-    pre = T.replicate indent " "
-    go cur [] = [cur]
-    go cur (y : ys)
-      | textW cur + 1 + textW y <= n = go (cur <> " " <> y) ys
-      | otherwise = cur : go (pre <> y) ys
-
 commoditiesDoc :: RenderCtx -> CommoditiesModel -> ViewDoc
 commoditiesDoc ctx m = ViewDoc
-  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdCursorLast = Nothing
+  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdCursorLast = Nothing, vdStretch = Nothing
   , vdBottom = panels
   , vdKeys = keys, vdLegend = legend }
   where

@@ -5,7 +5,8 @@
 -- bar and the day's transactions beneath it. Pure.
 module Cal.View.Week (weekDoc) where
 
-import Data.List (find)
+import Data.List (find, sortBy)
+import Data.Ord (Down (..), comparing)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -24,21 +25,40 @@ import Cal.Types
 import Cal.View.Chrome
 import Cal.View.Types
 
--- | @columnWidths avail [(lo, natural)]@: content widths summing to
--- @avail@ (see 'weekDoc'). When even the floors don't fit, an even split.
-columnWidths :: Int -> [(Int, Int)] -> [Int]
+-- | @columnWidths avail [(lo, natural, weight)]@: content widths summing
+-- to @avail@ (see 'weekDoc'). When every column's need (the larger of its
+-- floor and natural width) fits, the room is shared in proportion to the
+-- weights, and a column whose need exceeds its share keeps its need while
+-- the others share the rest. When the needs don't fit, the widest are
+-- capped evenly. Leftover cells go to the heaviest columns first, then
+-- left to right. When even the floors don't fit, an even split.
+columnWidths :: Int -> [(Int, Int, Int)] -> [Int]
 columnWidths avail cols
   | sum los > avail = spread avail n
-  | sum needs <= avail = topUp (map (max (level (\b -> map (max b) needs))) needs)
+  | sum needs <= avail = topUp (weighted (map (const False) cols))
   | otherwise = topUp (capped (level capped))
   where
     n = length cols
-    los = map fst cols
-    needs = [ max lo nat | (lo, nat) <- cols ]
-    capped c = [ max lo (min nat c) | (lo, nat) <- cols ]
+    los = [ lo | (lo, _, _) <- cols ]
+    wts = [ max 1 wt | (_, _, wt) <- cols ]
+    needs = [ max lo nat | (lo, nat, _) <- cols ]
+    capped c = [ max lo (min nat c) | (lo, nat, _) <- cols ]
     -- the highest level whose widths still fit
     level ws = last (0 : takeWhile (\b -> sum (ws b) <= avail) [1 .. avail])
-    topUp ws = let r = avail - sum ws in zipWith (+) ws (replicate r 1 ++ repeat 0)
+    -- shares in proportion to the weights; a column that needs more than
+    -- its share is fixed at its need and the rest shared again
+    weighted fixed
+      | freeW == 0 = needs
+      | fixed' /= fixed = weighted fixed'
+      | otherwise = [ if f then nd else floor (unit * fromIntegral wt) | (f, nd, wt) <- zip3 fixed needs wts ]
+      where
+        freeW = sum [ wt | (False, wt) <- zip fixed wts ]
+        unit = fromIntegral (avail - sum [ nd | (True, nd) <- zip fixed needs ]) / fromIntegral freeW :: Double
+        fixed' = [ f || fromIntegral nd > unit * fromIntegral wt | (f, nd, wt) <- zip3 fixed needs wts ]
+    topUp ws =
+      let order = map snd (sortBy (comparing (\(wt, i) -> (Down wt, i))) (zip wts [0 :: Int ..]))
+          extra = take (avail - sum ws) (cycle order)
+      in [ x + length (filter (== i) extra) | (i, x) <- zip [0 ..] ws ]
     spread total k = let (q, r) = total `divMod` max 1 k in replicate r (q + 1) ++ replicate (k - r) q
 
 -- | Title: @Week 44  26 Oct – 1 Nov 2026@; both years when the week spans two.
@@ -57,7 +77,7 @@ weekTitle g m =
 
 weekDoc :: RenderCtx -> WeekModel -> ViewDoc
 weekDoc ctx m = ViewDoc
-  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdCursorLast = cursorLast
+  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdCursorLast = cursorLast, vdStretch = stretch
   , vdBottom = emptyB, vdKeys = keys, vdLegend = legend }
   where
     g = rcGlyphs ctx
@@ -148,9 +168,9 @@ weekDoc ctx m = ViewDoc
       | interactive = lookup True (zip (map snd tagged) [0 ..])
       | otherwise = Nothing
 
-    (body, cursorRow, cursorLast)
-      | rcTier ctx >= Tier120 = (gridBody, gridCursorRow, gridCursorLast)
-      | otherwise = (listBody, listCursorRow, Nothing)
+    (body, cursorRow, cursorLast, stretch)
+      | rcTier ctx >= Tier120 = (gridBody, gridCursorRow, gridCursorLast, gridStretch)
+      | otherwise = (listBody, listCursorRow, Nothing, Nothing)
 
     -- * Body from 120 columns: the day grid (design F5)
     -- One bordered box: a header row, a 6-row spend bar, the day total and
@@ -165,10 +185,12 @@ weekDoc ctx m = ViewDoc
     -- needs more widened up to their natural width (descriptions, accounts
     -- and figure lines each on one line, with a 2-cell gap in a figure
     -- line; the FX line just wraps) out of what the others don't need.
+    -- A day with transactions is weighted 1.5 times an empty day, as in the
+    -- artboard (about 1.4 there), so its column comes out wider.
     -- When that doesn't fit, the widest are capped evenly and their text
     -- wraps. No column is narrower than its widest whole figure, nor than
     -- 10 cells; a natural width counts for at most 2/7 of the room.
-    colWs = columnWidths avail [ (loOf d, natOf d) | d <- days ]
+    colWs = columnWidths avail [ (loOf d, natOf d, if null (wdTxns d) then 2 else 3) | d <- days ]
     colStart i = sum [ cw + 3 | cw <- take i colWs ]
     -- the figure on the right is the valued amount, or with no valuation
     -- (native) the signed native amount; the grey native amount @rate sits
@@ -206,7 +228,7 @@ weekDoc ctx m = ViewDoc
       _ -> replicate barH []
     totalRows cw d =
       let t = netT d
-          sty = if null (wdTxns d) then dim else bold (signStyle g t)
+          sty = if null (wdTxns d) then plain else bold (signStyle g t)
       in [ [spaces (cw - textW x), Seg sty x] | x <- wrapFig g cw t ]
     -- an account broken after its colons, so its parts stay whole
     acctLines cw a = fill (concatMap chunk (parts a))
@@ -242,13 +264,13 @@ weekDoc ctx m = ViewDoc
                 | forecast = dim
                 | otherwise = bold plain
               descL x = if selected then [Seg dsty (x <> T.replicate (cw - textW x) " ")] else [Seg dsty x]
-          in map descL (wrapFig g cw (tbDescription tb))
+          in map descL (wrapWords cw 0 (tbDescription tb))
              ++ concatMap (postingRows cw) (tbRows tb)
-             ++ [ [Seg dim x] | Just fx <- [tbFx tb], x <- wrapFig g cw (fxText fx) ]
+             ++ [ [Seg dim x] | Just fx <- [tbFx tb], x <- wrapWords cw 0 (fxText fx) ]
              ++ [[Seg rule (T.replicate cw (T.singleton (gDashRule g)))]]
     postingRows cw r =
       [ [Seg dim x] | x <- acctLines cw (drAccount r) ]
-      ++ [ [Seg dim x] | Just loc <- [drLocation r], x <- wrapFig g cw loc ]
+      ++ [ [Seg dim x] | Just loc <- [drLocation r], x <- wrapWords cw 0 loc ]
       ++ figRows
       where
         l = figLeft r
@@ -290,12 +312,22 @@ weekDoc ctx m = ViewDoc
       | not interactive = Nothing
       | otherwise = Just (maybe 1 ((+ txnTop) . fst) curSel)
     gridCursorLast = (+ txnTop) . snd <$> curSel
-    -- the cursor day's column: its share of the box's lines (design S4)
-    gridBody =
-      let b = vcat gridLines
+    -- the cursor day's column: its share of the box's lines (design S4).
+    -- An empty transaction row is drawn before the bottom rule with the
+    -- rest, so it carries the cursor border too, then taken out: it is the
+    -- line the TUI repeats to run the columns down to the footer.
+    bottomAt = length gridLines - 1
+    withStretch =
+      let (above, bottom) = splitAt bottomAt gridLines
+          b = vcat (above ++ section (\_ _ -> []) ++ bottom)
       in case curCol of
-           Just i -> cursorRect (0, colStart i) (length gridLines - 1, colStart (i + 1)) b
+           Just i -> cursorRect (0, colStart i) (bottomAt + 1, colStart (i + 1)) b
            Nothing -> b
+    (gridBody, gridStretch) =
+      let (above, rest') = splitAt bottomAt (bLines withStretch)
+      in case rest' of
+           (st' : bottom) -> (withStretch { bLines = above ++ bottom }, Just (bottomAt, st'))
+           [] -> (withStretch, Nothing)
 
     -- * Footer
     keys = [(gKeyLeftRight g, "day"), (gKeyUpDown g, "transaction"), ("[ ]", "week"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]

@@ -178,6 +178,27 @@ unit_cursorBorder = do
   assertEqual "print: no cursor border" [] (cursorCells (vdBody d'))
   assertBool "print: no reverse video" (not (any (any (stInverse . snd)) (cellStyles (vdBody d'))))
 
+-- | The line the TUI repeats to run the columns to the footer: an empty
+-- transaction row before the bottom rule, with the cursor column's edges
+-- in the cursor role; none for the list below 120.
+unit_stretch :: Assertion
+unit_stretch = do
+  forM_ [120, 140, 200] $ \w -> do
+    (d, _) <- weekRender ["-W", "-p", "2026-10-30"] w True
+    (i, l) <- maybe (assertFailure "no stretch line") pure (vdStretch d)
+    let ls = bLines (vdBody d)
+        t = plainText (Block w [l])
+        edges = [ c | (_, c, _) <- cursorCells (Block w [l]) ]
+        bodyEdges = [ c | (r, c, _) <- cursorCells (vdBody d), r == i - 1 ]
+    assertEqual ("before the bottom rule at " ++ show w) (length ls - 1) i
+    assertEqual ("8 dividers at " ++ show w) 8 (T.count "│" t)
+    assertEqual ("blank between the dividers at " ++ show w) "" (T.filter (`notElem` (" │" :: String)) t)
+    assertEqual ("cursor edges as on the row above at " ++ show w) bodyEdges edges
+  (d', _) <- weekRender ["-W", "-p", "2026-10-30"] 140 False
+  assertBool "print: no cursor on the stretch line" (maybe False (\(_, l) -> null (cursorCells (Block 140 [l]))) (vdStretch d'))
+  (d100, _) <- weekRender week44 100 True
+  assertBool "no stretch for the list" (vdStretch d100 == Nothing)
+
 -- | ↑↓ selects within a long day: the reversed description, the cursor
 -- row and the selected transaction's last row follow the selection.
 unit_selection :: Assertion

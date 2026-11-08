@@ -196,9 +196,14 @@ draw as@(AppState us _ _) = [helpLayer | usPane us == PaneHelp] ++ [screen]
       Just ly ->
         let doc = lyDoc ly
             ctx = lyCtx ly
-            bodyLines = bLines (vdBody doc)
+            bodyLines0 = bLines (vdBody doc)
             rest = bLines (lyRest ly)
-            ScreenRows room bodyH = screenRows h (length (bLines (vdTop doc))) (length bodyLines) (length rest) (length (bLines (lyFooter ly)))
+            ScreenRows room bodyH0 = screenRows h (length (bLines (vdTop doc))) (length bodyLines0) (length rest) (length (bLines (lyFooter ly)))
+            -- a view that stretches fills the spare rows itself (Week's columns)
+            (bodyLines, bodyH) = case vdStretch doc of
+              Just (i, l) | room > bodyH0 ->
+                let (a, b) = splitAt i bodyLines0 in (a ++ replicate (room - bodyH0) l ++ b, room)
+              _ -> (bodyLines0, bodyH0)
             -- the viewport follows the cursor: its row and the whole box drawn around it
             body = vLimit bodyH $ viewport BodyViewport Vertical $ vBox $ case cursorSpan bodyH (vdCursorRow doc) (vdCursorLast doc) bodyLines of
               Nothing -> map lineWidget bodyLines

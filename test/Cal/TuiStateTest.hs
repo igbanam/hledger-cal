@@ -304,6 +304,56 @@ unit_weekViewportFollows = do
         (zip [1 :: Int ..] walk)
   assertEqual "the selection reached the last errand" 11 (cuWeekTxn (usCursor (last walk)))
 
+-- | The rows of a rendered vty image as (character, attribute) cells.
+imageCells :: Image -> [[(Char, Vty.Attr)]]
+imageCells img = case img of
+  HorizText a t _ _ -> [[ (c, a) | c <- TL.unpack t ]]
+  HorizJoin l r _ h -> zipWith (++) (padRows h (imageCells l)) (padRows h (imageCells r))
+  VertJoin a b _ _ -> imageCells a ++ imageCells b
+  BGFill w h -> replicate h (replicate w (' ', Vty.defAttr))
+  Crop i left top w h -> take h [ take w (drop left r) | r <- drop top (imageCells i) ]
+  EmptyImage -> []
+  where
+    padRows h rs = take h (rs ++ repeat [])
+
+-- | Design F5 fix: in the TUI the Week day columns run down to the footer.
+-- At 140×60 on week 42 (cursor on Fri 16) the grid's bottom rule is the
+-- last body row, one blank row above the footer, and the cursor column's
+-- edges are unbroken from the top rule down to it.
+unit_weekColumnsToFooter :: IO ()
+unit_weekColumnsToFooter = do
+  env <- envFor ["-W", "-p", "2026-10-16"]
+  let pic = renderWidget (Just calAttrMap) (draw (appStateFor ((initState env) { usWidth = 140 }) t0)) (140, 60)
+      cells = concatMap imageCells (take 1 (Vty.picLayers pic))
+      rows = map (map fst) cells
+      cursorAttr = attrMapLookup (styleAttr Doc.cursorBorder) calAttrMap
+      gridTop = [ i | (i, r) <- zip [0 :: Int ..] rows, take 1 r == "┌", '┬' `elem` r, "Mon" `isInfixOf` (rows !! (i + 1)) ]
+      bottoms = [ i | (i, r) <- zip [0 :: Int ..] rows, take 1 r == "└", '┴' `elem` r ]
+  assertEqual "screen rows" 60 (length rows)
+  top <- case gridTop of
+    (x : _) -> pure x
+    [] -> assertFailure ("no grid top: " ++ unlines rows)
+  bottom <- case filter (> top) bottoms of
+    (x : _) -> pure x
+    [] -> assertFailure "no grid bottom"
+  assertEqual "blank row under the grid" "" (dropWhileEnd' (rows !! (bottom + 1)))
+  -- everything under that blank row is the footer: the key hints (two
+  -- rows at 140) down to the screen's last row, no filler rows
+  let footer = drop (bottom + 2) rows
+  assertBool ("the footer follows: " ++ show footer) ("transaction" `isInfixOf` concat footer && "quit" `isInfixOf` concat footer)
+  assertBool ("no filler between the grid and the footer: " ++ show footer)
+    (length footer <= 2 && all (not . null . dropWhileEnd') footer)
+  -- the cursor column: its edges on the top rule
+  let edgeCols = [ c | (c, (_, a)) <- zip [0 :: Int ..] (cells !! top), a == cursorAttr ]
+  assertBool ("cursor edges on the top rule: " ++ show edgeCols) (length edgeCols > 2)
+  let c0 = minimum edgeCols
+      c1 = maximum edgeCols
+  mapM_ (\i -> assertBool ("cursor edges on row " ++ show i)
+                 (snd (cells !! i !! c0) == cursorAttr && snd (cells !! i !! c1) == cursorAttr))
+        [top .. bottom]
+  where
+    dropWhileEnd' = reverse . dropWhile (== ' ') . reverse
+
 -- | The rows of a rendered vty image as plain text (one entry per
 -- character; the fixture's wide characters don't occur in the rows used).
 imageRows :: Image -> [String]

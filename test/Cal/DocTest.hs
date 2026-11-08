@@ -51,3 +51,12 @@ unit_ansiBackground :: Assertion
 unit_ansiBackground =
   renderAnsi ColorTrue (str (onBg RExp 100 (st RInc)) "\9600")
     @?= "\ESC[38;2;108;182;255m\ESC[48;2;244;112;103m\9600\ESC[0m"
+
+-- | Word wrap: greedy on spaces, continuation indent, a word wider than a
+-- line broken into pieces that fit.
+unit_wrapWords :: Assertion
+unit_wrapWords = do
+  wrapWords 10 0 "FX effect −12,000 (txn-date rate 1,540.00)" @?= ["FX effect", "−12,000", "(txn-date", "rate", "1,540.00)"]
+  wrapWords 12 2 "one two three four" @?= ["one two", "  three four"]
+  wrapWords 4 0 "abcdefghij x" @?= ["abcd", "efgh", "ij x"]
+  wrapWords 5 0 "" @?= [""]

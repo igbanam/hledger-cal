@@ -3,7 +3,7 @@ module Cal.Doc
   ( Style (..), st, bold, inverse, tinted, onBg, cursorBorder
   , Seg (..), Line (..), Block (..)
   , textW, str, line, emptyB, hcat, vcat, padTo, alignR, boxed, boxedIn, cursorRect
-  , truncEnd, truncAccount, wrapFig, plainText, renderAnsi
+  , truncEnd, truncAccount, wrapFig, wrapWords, plainText, renderAnsi
   ) where
 
 import Data.Char (GeneralCategory (..), generalCategory, isAlpha, isDigit, isUpper)
@@ -220,6 +220,26 @@ wrapFig g n t
         go cur (y : ys)
           | textW cur + textW sep + textW y <= n = go (cur <> sep <> y) ys
           | otherwise = cur : go y ys
+
+-- | Word-wrap @t@ into lines of at most @n@ columns; continuation lines
+-- get @indent@ spaces. A word wider than a line is broken into pieces that
+-- fit, so no line is ever wider than @n@.
+wrapWords :: Int -> Int -> Text -> [Text]
+wrapWords n indent t = case concatMap split (T.words t) of
+  [] -> [""]
+  (x : xs) -> go x xs
+  where
+    pre = T.replicate indent " "
+    room = max 1 (n - indent)
+    split x
+      | textW x <= room = [x]
+      | otherwise = let h = takeW room x
+                        h' = if T.null h then T.take 1 x else h
+                    in h' : split (T.drop (T.length h') x)
+    go cur [] = [cur]
+    go cur (y : ys)
+      | textW cur + 1 + textW y <= n = go (cur <> " " <> y) ys
+      | otherwise = cur : go (pre <> y) ys
 
 truncAccount :: Int -> AccountName -> Text
 truncAccount = elideAccountName

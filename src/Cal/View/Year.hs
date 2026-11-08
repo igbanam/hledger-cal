@@ -24,7 +24,7 @@ yearOf d = let (y, _, _) = toGregorian d in y
 
 yearDoc :: RenderCtx -> YearModel -> ViewDoc
 yearDoc ctx m = ViewDoc
-  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdCursorLast = Nothing, vdBottom = emptyB
+  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdCursorLast = Nothing, vdStretch = Nothing, vdBottom = emptyB
   , vdKeys = keys, vdLegend = legend }
   where
     g = rcGlyphs ctx
