@@ -225,3 +225,31 @@ unit_cursorBorder = mapM_ check [140, 80]
       assertBool (tag ++ "no reversed cell") (not (any (stInverse . snd) (concat (cellStyles body))))
       (d', _) <- render oct vooCursor w False
       cursorCells (vdBody d') @?= []
+
+-- | The detail chart: a bar per month on three y labels, month initials
+-- under the bars, the last bar highlighted, the range on the title row and
+-- the decomposition foot for a price via another currency.
+unit_detailChart :: Assertion
+unit_detailChart = do
+  (d, _) <- render (oct ++ ["--color=always"]) vooCursor 140 False
+  let panel = vdBottom d
+      ls = T.lines (plainText panel)
+      -- the detail box is the left one; its inner text
+      inner = [ T.drop 2 (fst (T.breakOn "│  │" l)) | l <- ls ]
+  assertBool "title and range" (hasLine (T.unlines inner) ["VOO in ₦ · per share · 12 months", "710,400 → 868,000 · +22.2%"])
+  let yLabels = [ T.strip (fst (T.breakOn "│" l)) | l <- inner, "│" `T.isInfixOf` l ]
+  filter (not . T.null) yLabels @?= ["900k", "800k", "700k"]
+  assertBool "initials" (any ((== T.words "N D J F M A M J J A S O") . T.words) inner)
+  assertBool "decomposition" (hasLine (T.unlines inner) ["share price in $ +16.7%", "× $ → ₦ +4.7%", "= in ₦ +22.2%"])
+  -- bar cells: the rightmost bar alone is in the text colour, the rest faded
+  let bars = [ (col, stRole s) | r <- cellStyles panel, (col, (ch, s)) <- zip [0 :: Int ..] r
+                               , ch `elem` ("█▁▂▃▄▅▆▇" :: String), col < 72 ]
+      lit = [ c | (c, RText) <- bars ]
+      faded = [ c | (c, RFaded) <- bars ]
+  assertBool "one lit bar" (not (null lit) && maximum lit - minimum lit < 6)
+  assertBool "lit bar is the last" (not (null faded) && minimum lit > maximum faded)
+  assertBool "only text and faded bars" (all ((`elem` [RText, RFaded]) . snd) bars)
+  -- the default (print) selection: USD, priced directly, so no decomposition
+  t <- plainText . snd <$> render oct defaultCursor 140 False
+  assertBool "usd chart" (hasLine t ["USD in ₦ · per unit · 12 months", "1,480 → 1,550 · +4.7%"] && hasLine t ["1,550 │"])
+  assertBool "no decomposition for usd" (not ("share price in" `T.isInfixOf` t))

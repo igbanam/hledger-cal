@@ -8,13 +8,14 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time.Calendar (toGregorian)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Numeric (showFFloat)
 import Hledger (mixed, nullamt)
 import qualified Hledger as H
 
 import Cal.Currency (chipLabel, codeOf, symbolOf)
 import Cal.Doc
 import Cal.Format
-import Cal.Glyphs (BoxChars (..), Glyphs (..), lineChart, sparkline)
+import Cal.Glyphs (BoxChars (..), Glyphs (..), sparkline, vbar)
 import Cal.Model.Commodities
 import Cal.Period (isoWeek, quarterOf)
 import Cal.Prices (RateInfo (..), RateSource (..))
@@ -79,6 +80,11 @@ commoditiesDoc ctx m = ViewDoc
     valueT = unsigned . fmtQty f
     -- prices in charts and the detail heading: base style from 1,000 up
     priceT q = if abs q >= 1000 then valueT q else fmtRate q
+    -- chart axis labels: thousands as k, millions as M, else as 'priceT'
+    axisT q
+      | abs q >= 1000000 = T.pack (showFFloat (Just 1) (realToFrac q / 1000000 :: Double) "") <> "M"
+      | abs q >= 10000 = T.pack (show (round (q / 1000) :: Integer)) <> "k"
+      | otherwise = priceT q
     pctSeg x = let t = fmtDeltaPct f x in Seg (signStyle g t) t
     priced r = valued && not (crIsBase r)
     one t = [Seg plain t]
@@ -262,7 +268,7 @@ commoditiesDoc ctx m = ViewDoc
       Nothing -> box explTitle explW explB
 
     -- the chart only when the commodity has a price in the base
-    detailLines dI cd = vcat ([heading] ++ (if null present then [] else chart ++ [axis]) ++ splitL)
+    detailLines dI cd = vcat ([heading] ++ (if null present then [] else blankB : chart ++ [axis]) ++ splitL)
       where
         c = cdCommodity cd
         kind = if isSecurity c then "per share" else "per unit"
@@ -274,28 +280,61 @@ commoditiesDoc ctx m = ViewDoc
           | textW left + 2 + rightW <= dI =
               line [Seg (bold plain) left, spaces (dI - textW left - rightW), Seg dim rangeT, pctS]
           | otherwise = vcat [str (bold plain) (truncEnd g dI left), line [Seg dim rangeT, pctS]]
-        vals = map snd (cdSeries cd)
+        -- a bar per month-end on three round ticks (top, middle, floor), the
+        -- floor under the lowest price so the lowest bar still shows
+        vals = map (fmap realToFrac . snd) (cdSeries cd) :: [Maybe Double]
         present = [v | Just v <- vals]
         (hi, lo) = if null present then (0, 0) else (maximum present, minimum present)
-        labels
-          | null present = ["", "", ""]
-          | otherwise = map priceT [hi, (hi + lo) / 2, lo]
+        raw = if hi > lo then (hi - lo) / 2 else max 1 (abs hi / 10)
+        mag = 10 ^^ (floor (logBase 10 raw) :: Integer) :: Double
+        steps = [ k * mag * 10 ^^ e | e <- [0 :: Integer ..], k <- [1, 2, 2.5, 5] ]
+        topOf n = fromIntegral (ceiling (hi / n) :: Integer) * n
+        step = case [ n | n <- steps, n >= raw, topOf n - 2 * n < lo ] of
+          (n : _) -> n
+          [] -> raw
+        topV = topOf step
+        floorV = topV - 2 * step
+        frac v = (v - floorV) / (topV - floorV)
+        chartH = 8
+        labels = map (axisT . realToFrac) [topV, topV - step, floorV]
         labelW = maximum (map textW labels)
-        chartW = max 1 (dI - labelW - 1)
-        chartRows = lineChart g chartW 8 (map (fmap realToFrac) vals)
-        labelAt i = case i of
-          0 -> labels !! 0
-          4 -> labels !! 1
-          7 -> labels !! 2
-          _ -> ""
-        chart = [ line [Seg dim (T.justifyRight labelW ' ' (labelAt i)), Seg plain " ", Seg (st RInc) r]
-                | (i, r) <- zip [0 :: Int ..] chartRows ]
-        nPts = length (cdSeries cd)
+        labelAt i
+          | i == 0 = labels !! 0
+          | i == chartH `div` 2 = labels !! 1
+          | i == chartH - 1 = labels !! 2
+          | otherwise = ""
+        -- one slot per month, the spare cells spread over the first slots
+        barsW = max 1 (dI - labelW - 2)
+        nPts = length vals
+        (slotW, spare) = barsW `divMod` max 1 nPts
+        slotWs = [ slotW + (if i < spare then 1 else 0) | i <- [0 .. nPts - 1] ]
+        barW = max 1 (min 6 (slotW - max 1 (slotW `div` 4)))
+        lead sw = (sw - barW) `div` 2
+        lastI = nPts - 1
+        -- the last bar in the text colour, the others faded; without colour
+        -- the others are whole shaded cells
+        barStyle i = if i == lastI then plain else st RFaded
+        shadeG i
+          | i == lastI || colourOn ctx = g
+          | otherwise = g { gFull = if null (gColEighths g) then ':' else '▒', gColEighths = [] }
+        column i v = case v of
+          Just x -> vbar (shadeG i) chartH (frac x)
+          Nothing -> replicate chartH ' '
+        cols' = zip3 [0 :: Int ..] slotWs (zipWith column [0 ..] vals)
+        -- a month with no price: one dim dot on the floor
+        slot r (i, sw, col)
+          | isJust (vals !! i) =
+              [spaces (lead sw), Seg (barStyle i) (T.replicate barW (T.singleton (col !! r))), spaces (sw - lead sw - barW)]
+          | r == chartH - 1 = [spaces (mid sw), Seg dim (T.singleton (gSparkMissing g)), spaces (sw - mid sw - 1)]
+          | otherwise = [spaces sw]
+        mid sw = lead sw + (barW - 1) `div` 2
+        axisS = Seg (st RRule) (T.singleton (bxV bx))
+        chart = [ line ([Seg dim (T.justifyRight labelW ' ' (labelAt r)), Seg plain " ", axisS] ++ concatMap (slot r) cols')
+                | r <- [0 .. chartH - 1] ]
         initial d = T.take 1 (T.pack (formatTime defaultTimeLocale "%b" d))
-        xs = [ (if nPts == 0 then 0 else (i * chartW + nPts - 1) `div` nPts, initial d)
-             | (i, (d, _)) <- zip [0 ..] (cdSeries cd) ]
-        axisText = T.pack [ maybe ' ' T.head (lookup x xs) | x <- [0 .. chartW - 1] ]
-        axis = line [spaces (labelW + 1), Seg dim axisText]
+        axis = line (spaces (labelW + 2) : concat
+          [ [spaces (mid sw), Seg (if i == lastI then bold plain else dim) (initial d), spaces (sw - mid sw - 1)]
+          | ((i, sw, _), (d, _)) <- zip cols' (cdSeries cd) ])
         splitL = case cdSplit cd of
           Just (x, own, fx, tot) | valued ->
             let xs' = fromMaybe x (symbolOf x)
