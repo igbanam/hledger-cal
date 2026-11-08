@@ -249,6 +249,19 @@ unit_yearGridEdges = do
   down (at (d 2026 9 6)) @?= d 2026 9 6
   down (at (d 2026 8 6)) @?= d 2026 11 6
 
+-- | A grid step into the previous year moves when that month lies in the
+-- data range: the rule is the range, not the year shown.
+unit_yearGridCrossYear :: IO ()
+unit_yearGridCrossYear = do
+  y <- mk ["-Y"]
+  let at day = y { usWidth = 140, usEnv = (usEnv y) { envSettings = (envSettings (usEnv y))
+                   { sFocus = day, sDataRange = (d 2025 3 10, d 2026 11 6) } } }
+      up s0 = focus (run s0 [CmdMove 0 (-1)])
+  up (at (d 2026 2 10)) @?= d 2025 11 10
+  up (at (d 2026 1 15)) @?= d 2025 10 15
+  up (at (d 2025 5 20)) @?= d 2025 5 20
+  up (at (d 2025 6 2)) @?= d 2025 3 10
+
 -- | The viewport keeps the whole cursor box in view: the cursor row and
 -- the lines around it that hold the cursor border.
 unit_cursorSpan :: IO ()
