@@ -50,3 +50,10 @@ unit_multiFileRegister :: Assertion
 unit_multiFileRegister = do
   e <- multiEnv
   map rgDescription (registerRows e octSpan (d 2026 10 3)) @?= [Just "Lunch", Just "Lunch"]
+
+-- | The second file declares the ₦ style too, so "₦2,000" is two thousand.
+unit_multiFileAmounts :: Assertion
+unit_multiFileAmounts = do
+  e <- multiEnv
+  map (n . rgRunning) (registerRows e octSpan (d 2026 10 3)) @?= [-1000, -3000]
+  baseQty "₦" (kExpenses (kpisFor e IMonth octSpan)) @?= 3500

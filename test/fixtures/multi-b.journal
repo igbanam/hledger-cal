@@ -1,4 +1,5 @@
 ; Second of two files loaded together (multi-file transaction identity).
+commodity ₦1,000.
 account assets:bank  ; type: C
 account expenses     ; type: X
 
