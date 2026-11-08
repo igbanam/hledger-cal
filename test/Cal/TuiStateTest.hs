@@ -7,7 +7,10 @@ import Cal.Journal (journalDataRange)
 import Cal.Model.Common (Env (..))
 import Cal.Model.Commodities (CommodityRow (..), CommoditiesModel (..), commoditiesModel)
 import Cal.Theme (Role (..))
-import Cal.Tui.App (attrMapFor, bgAttr, blockWidget, calAttrMap, clampRegisterScroll, cursorSpan, styleAttr)
+import Cal.Tui.App (ScreenRows (..), attrMapFor, bgAttr, blockWidget, calAttrMap, clampRegisterScroll, cursorSpan, screenRows, styleAttr)
+import Cal.Model.Month (monthModel)
+import Cal.View.Month (monthDoc)
+import Cal.View.Types (ViewDoc (..), mkRenderCtx)
 import Cal.Tui.State
 import Cal.Types
 import Data.Maybe (isJust)
@@ -273,3 +276,21 @@ unit_cursorSpan = do
   cursorSpan (Just 4) ls @?= Just (4, 4)
   cursorSpan (Just 0) [plainL] @?= Just (0, 0)
   cursorSpan Nothing ls @?= Nothing
+
+-- | Design S3: the Month panels start one blank row under the last body
+-- line, whether the body fits the screen or scrolls in a shorter viewport.
+unit_panelPlacement :: IO ()
+unit_panelPlacement = do
+  env <- envFor ["-M", "-p", "2026-10-30"]
+  ctx <- maybe (assertFailure "no render context") pure (mkRenderCtx env 200 True)
+  let doc = monthDoc ctx (monthModel env)
+      n f = length (Doc.bLines (f doc))
+      (topN, bodyN, panelN) = (n vdTop, n vdBody, n vdBottom)
+      tall = screenRows 80 topN bodyN panelN 2
+      short = screenRows 40 topN bodyN panelN 2
+  srBodyH tall @?= bodyN
+  srPanelRow tall @?= topN + 1 + bodyN + 1
+  assertBool "the short screen scrolls the body" (srBodyH short < bodyN)
+  srPanelRow short @?= topN + 1 + srBodyH short + 1
+  -- the panels and the footer still fit under the short body
+  assertBool "panels fit" (srPanelRow short + panelN + 1 + 2 <= 40)

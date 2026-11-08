@@ -9,6 +9,8 @@ module Cal.Tui.App
   , bgAttr
   , clampRegisterScroll
   , cursorSpan
+  , ScreenRows (..)
+  , screenRows
   ) where
 
 import Control.Concurrent (forkIO, threadDelay)
@@ -189,11 +191,7 @@ draw as@(AppState us _ _) = [helpLayer | usPane us == PaneHelp] ++ [screen]
             ctx = lyCtx ly
             bodyLines = bLines (vdBody doc)
             rest = bLines (lyRest ly)
-            -- the panels sit one blank row under the body (design S3); the
-            -- footer stays at the bottom, the space left over goes above it
-            restH = if null rest then 0 else length rest + 1
-            room = max 1 (h - length (bLines (vdTop doc)) - 2 - restH - length (bLines (lyFooter ly)))
-            bodyH = min room (length bodyLines)
+            ScreenRows room bodyH _ = screenRows h (length (bLines (vdTop doc))) (length bodyLines) (length rest) (length (bLines (lyFooter ly)))
             -- the viewport follows the cursor: its row and the whole box drawn around it
             body = vLimit bodyH $ viewport BodyViewport Vertical $ vBox $ case cursorSpan (vdCursorRow doc) bodyLines of
               Nothing -> map lineWidget bodyLines
@@ -224,6 +222,24 @@ draw as@(AppState us _ _) = [helpLayer | usPane us == PaneHelp] ++ [screen]
             Nothing -> ""
       render $ centerLayer $ borderWithLabel (txt "keys") $ hLimit (max 20 (min 100 (w - 4))) $
         padLeftRight 1 $ vBox ([txtWrap general] ++ [txtWrap faceKeys | not (T.null faceKeys)])
+
+-- | Where the main screen's parts go (design S3), for a screen @h@ rows
+-- tall: the top chrome and a blank row, the body viewport, a blank row,
+-- the panels and a blank row when there are any, then filler, then the
+-- footer at the bottom.
+data ScreenRows = ScreenRows
+  { srRoom :: !Int      -- ^ rows the body may take
+  , srBodyH :: !Int     -- ^ rows the body takes
+  , srPanelRow :: !Int  -- ^ the first panel row
+  } deriving (Eq, Show)
+
+-- | @screenRows h topH bodyN panelN footerN@.
+screenRows :: Int -> Int -> Int -> Int -> Int -> ScreenRows
+screenRows h topH bodyN panelN footerN = ScreenRows room bodyH (topH + 1 + bodyH + 1)
+  where
+    restH = if panelN == 0 then 0 else panelN + 1
+    room = max 1 (h - topH - 2 - restH - footerN)
+    bodyH = min room bodyN
 
 -- | The body lines the viewport keeps in view, first and last: the cursor
 -- row and, when it holds the cursor border, the lines on either side of it
