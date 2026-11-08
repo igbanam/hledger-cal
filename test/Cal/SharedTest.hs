@@ -112,3 +112,11 @@ unit_staleYear :: IO ()
 unit_staleYear = do
   env <- envFor ["-Y"]
   [c | (c, True) <- cbChoices (currencyBar env (Span (fromGregorian 2026 1 1) (fromGregorian 2027 1 1)))] @?= ["Dh"]
+
+-- | Every currency in the journal is a choice, declared with commodity or
+-- not: first those posted (in parse order), then those used only as a
+-- cost, then only in P directives, then only declared.
+unit_currencyChoicesUndeclared :: Assertion
+unit_currencyChoicesUndeclared = do
+  env <- envFor ["-M", "-p", "2026-10", "-f", "test/fixtures/undeclared.journal"]
+  currencyChoices env @?= ["₦", "GBP", "£", "¥", "CHF", "CAD"]

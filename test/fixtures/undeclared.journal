@@ -1,0 +1,27 @@
+; Currencies the journal uses without declaring them, and ones it only
+; declares, prices or uses as a cost.
+commodity ₦1,000.
+commodity 1,000.00 CAD
+D ₦1,000.
+account assets:bank  ; type: C
+account assets:fx    ; type: C
+account income       ; type: R
+account expenses     ; type: X
+
+P 2026-10-01 CHF ₦1,900
+
+2026-10-02 Household payroll
+    income:salary       ₦-500,000
+    assets:bank
+
+2026-10-03 Coffee abroad
+    expenses:food       GBP 4.50
+    assets:bank
+
+2026-10-04 Currency swap
+    assets:fx           £100 @@ ₦200,000
+    assets:bank
+
+2026-10-05 Travel card top-up
+    assets:fx           ₦10,000 @ ¥0.10
+    assets:bank         ₦-10,000 @ ¥0.10

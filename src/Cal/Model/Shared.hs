@@ -168,17 +168,24 @@ data CurrencyBar = CurrencyBar
   , cbRateAt :: !RateAt, cbPriceNote :: !(Maybe Text) }
   deriving (Eq, Show)
 
--- | The default base, then the other currencies by first appearance in the
--- journal's transaction postings (parse order).
+-- | Every currency in the journal, whether or not a @commodity@ directive
+-- declares it: the default base, then the others by first appearance in
+-- the transaction postings (parse order), then those used only as a cost,
+-- only in P directives, or only declared.
 currencyChoices :: Env -> [CommoditySymbol]
-currencyChoices env = nub (dflt ++ others)
+currencyChoices env = nub (dflt ++ filter isCurrency (posted ++ costs ++ priced ++ directives))
   where
+    j = envJournal env
     def' = sDefaultBase (envSettings env)
     dflt = [def' | def' /= ""]
-    others =
-      [ acommodity a
-      | t <- jtxns (envJournal env), p <- tpostings t, a <- amounts (pamount p)
-      , isCurrency (acommodity a) ]
+    postedAmts = [ a | t <- jtxns j, p <- tpostings t, a <- amounts (pamount p) ]
+    posted = map acommodity postedAmts
+    costs = [ acommodity c | a <- postedAmts, Just k <- [acost a], let c = costOf k ]
+    costOf k = case k of
+      UnitCost c -> c
+      TotalCost c -> c
+    priced = concat [ [pdcommodity pd, acommodity (pdamount pd)] | pd <- jpricedirectives j ]
+    directives = M.keys (jdeclaredcommodities j)
 
 currencyBar :: Env -> Span -> CurrencyBar
 currencyBar env span' = CurrencyBar
