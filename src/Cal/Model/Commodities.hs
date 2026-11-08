@@ -18,6 +18,8 @@ import Data.List (findIndex, nub, sortBy)
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe, isJust, isNothing, listToMaybe, mapMaybe)
 import Data.Ord (Down (..), comparing)
+import Data.Text (Text)
+import qualified Data.Text as T
 import Data.Time.Calendar (addGregorianMonthsClip)
 import Hledger hiding (Interval (..), Status)
 
@@ -28,6 +30,10 @@ data CommodityRow = CommodityRow
   , crStale :: !(Maybe Integer)
   , crViaPrice :: !(Maybe (CommoditySymbol, Quantity))
     -- ^ for a price via another commodity: that commodity and the price in it
+  , crUnit :: !(Maybe Text)
+    -- ^ the word held amounts show in place of the symbol: the directive's
+    -- @unit:@ tag, else "sh" for a whole-share security; Nothing shows the
+    -- amount in its own commodity
   }
   deriving (Eq, Show)
 
@@ -137,9 +143,16 @@ commoditiesModel env cursor = CommoditiesModel
            , crPrice = info, crDeltaPct = delta, crSpark = map snd (series c)
            , crValue = val, crShare = Nothing, crGain = gain
            , crStale = stale
+           , crUnit = unitOf c
            , crViaPrice = case riSource <$> info of
                Just (SrcVia x) -> (,) x <$> rateOn prices c x heldAt
                _ -> Nothing }
+    unitOf c = case lookup "unit" [ (T.toLower k, v) | (k, v) <- M.findWithDefault [] c (jdeclaredcommoditytags j) ] of
+      Just u | not (T.null (T.strip u)) -> Just (T.strip u)
+      _ | c `notElem` choices
+        , Just st <- M.lookup c (journalCommodityStyles j)
+        , asprecision st == Precision 0 -> Just "sh"
+        | otherwise -> Nothing
     rows0 = map mkRow commodities
     total = case base of
       Just _ -> Just (sum (mapMaybe crValue rows0))

@@ -14,13 +14,13 @@ $ hledger cal --commodities -p 2026-10 -f edge.journal
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ SECURITIES                                                                                                                               │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ BTC                  −0.01 sh           −0.01 sh        —     —  ············                 —  —                  —  no price          │
+│ BTC                 −0.01 BTC          −0.01 BTC        —     —  ············                 —  —                  —  no price          │
 ├──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ total       2 commodities  1 unpriced                                          −123,455,784,012                     —  0 stale prices    │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 ┌───────────────────────────────────────────────────────────────────────┐  ┌─ How these numbers are made ──────────────────────────────────┐
-│ BTC in ₦ · per share · 12 months                            — → — · — │  │ · A commodity is anything the journal counts: currencies,     │
+│ BTC in ₦ · per unit · 12 months                             — → — · — │  │ · A commodity is anything the journal counts: currencies,     │
 │                                                                       │  │   shares, units. Each one is valued in the base through any   │
 │                                                                       │  │   chain of prices (VOO → USD → NGN).                          │
 │                                                                       │  │ · Prices come from P directives (e.g. a daily price feed)     │

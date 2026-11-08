@@ -110,7 +110,7 @@ unit_edge = do
   -- the BTC row's cells inside the table box, split on runs of two or more spaces
   let btc = [ cells l | l <- T.lines t, "│ BTC  " `T.isPrefixOf` l ]
       cells l = filter (not . T.null) (map T.strip (T.splitOn "  " (T.filter (/= '│') l)))
-  btc @?= [["BTC", "−0.01 sh", "−0.01 sh", "—", "—", "············", "—", "—", "—", "no price"]]
+  btc @?= [["BTC", "−0.01 BTC", "−0.01 BTC", "—", "—", "············", "—", "—", "—", "no price"]]
   assertBool "total unpriced" (hasLine t ["total", "1 unpriced", "0 stale prices"])
 
 unit_ascii :: Assertion
@@ -253,3 +253,16 @@ unit_detailChart = do
   t <- plainText . snd <$> render oct defaultCursor 140 False
   assertBool "usd chart" (hasLine t ["USD in ₦ · per unit · 12 months", "1,480 → 1,550 · +4.7%"] && hasLine t ["1,550 │"])
   assertBool "no decomposition for usd" (not ("share price in" `T.isInfixOf` t))
+
+-- | Held and this-month amounts share one unit per row: a whole-share
+-- security in sh, a unit: tag's word, else the commodity itself.
+unit_units :: Assertion
+unit_units = do
+  t <- plainText . snd <$> render ["--commodities", "-p", "2026-10", "-f", "test/fixtures/units.journal"] defaultCursor 140 False
+  assertBool "whole shares" (hasLine t ["ACME ₦", "6 sh", "+6 sh"])
+  assertBool "unit: tag" (hasLine t ["GOLD ₦", "2.000 oz", "+2.000 oz"])
+  assertBool "fractional, own commodity" (hasLine t ["BTC ₦", "0.0100 BTC", "+0.0100 BTC"])
+  assertBool "chart per tagged unit" (hasLine t ["GOLD in ₦ · per oz · 12 months"])
+  -- the design fixture's whole-share securities
+  d <- plainText . snd <$> render oct defaultCursor 140 False
+  assertBool "voo in sh" (hasLine d ["VOO $", "3 sh"])

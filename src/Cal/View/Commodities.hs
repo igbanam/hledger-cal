@@ -102,10 +102,10 @@ commoditiesDoc ctx m = ViewDoc
         : [ Seg dim " base" | crIsBase r ]
         ++ [ Seg (st RWarn) (" " <> gStale g) | isJust (crStale r) ]
         ++ [ Seg dim (" " <> q) | isSecurity (crCommodity r), Just q <- [quoteSym r] ]
-    -- held and changed amounts: securities in shares, currencies with their symbol
-    units r q
-      | isSecurity (crCommodity r) = fmtUnits f "sh" (crCommodity r) q
-      | otherwise = fmtNative f (amt (crCommodity r) q)
+    -- held and changed amounts in the row's unit word, else with its own symbol
+    units r q = case crUnit r of
+      Just u -> fmtUnits f u (crCommodity r) q
+      Nothing -> fmtNative f (amt (crCommodity r) q)
     heldCell r = one (units r (crHeld r))
     changeCell r
       | crChange r == 0 = [Seg dim "0"]
@@ -271,7 +271,10 @@ commoditiesDoc ctx m = ViewDoc
     detailLines dI cd = vcat ([heading] ++ (if null present then [] else blankB : chart ++ [axis]) ++ splitL)
       where
         c = cdCommodity cd
-        kind = if isSecurity c then "per share" else "per unit"
+        kind = case [crUnit r | r <- rows, crCommodity r == c] of
+          (Just "sh" : _) -> "per share"
+          (Just u : _) -> "per " <> u
+          _ -> "per unit"
         left = codeOf c <> (if valued then " in " <> baseSym else "") <> gSep g <> kind <> gSep g <> "12 months"
         rangeT = maybe dash priceT (cdStart cd) <> " " <> gArrow g <> " " <> maybe dash priceT (cdEnd cd) <> gSep g
         pctS = maybe (Seg dim dash) pctSeg (cdPct cd)

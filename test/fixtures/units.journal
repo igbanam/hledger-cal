@@ -1,0 +1,24 @@
+; Unit labels in the Commodities view: a whole-share security (no tag,
+; precision 0 -> "sh"), a commodity whose directive names its unit with a
+; unit: tag, and a fractional one (shown in its own commodity).
+
+D ₦1,000.
+
+commodity 1. ACME
+commodity 1.000 GOLD  ; unit: oz
+commodity 1.0000 BTC
+
+2026-10-02 Buy
+    assets:brokerage       10 ACME @ ₦450
+    assets:vault           2.500 GOLD @ ₦1,900,000
+    assets:crypto          0.0100 BTC @ ₦85,000,000
+    equity:opening
+
+2026-10-20 Sell some
+    assets:brokerage       -4 ACME
+    assets:vault           -0.500 GOLD
+    equity:opening
+
+P 2026-10-25 ACME ₦500
+P 2026-10-25 GOLD ₦2,000,000
+P 2026-10-25 BTC ₦90,000,000

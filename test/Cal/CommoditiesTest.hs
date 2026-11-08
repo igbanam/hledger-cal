@@ -78,3 +78,12 @@ unit_initialSelection = do
   cmSelected n @?= 0
   e <- (`commoditiesModel` Cursor 0 (Just 0)) <$> envFor ["--commodities", "-p", "2026-10"]
   fmap cdCommodity (cmDetail e) @?= Just "\8358"
+
+unit_units :: Assertion
+unit_units = do
+  c <- (`commoditiesModel` defaultCursor) <$> envFor ["--commodities", "-p", "2026-10", "-f", "test/fixtures/units.journal"]
+  [ (crCommodity r, crUnit r) | r <- cmCurrencies c ++ cmSecurities c ]
+    @?= [("GOLD", Just "oz"), ("BTC", Nothing), ("ACME", Just "sh")]
+  d <- cm
+  [ (crCommodity r, crUnit r) | r <- cmCurrencies d ++ cmSecurities d, crUnit r /= Nothing ]
+    @?= [("VOO", Just "sh"), ("MTNN", Just "sh")]
