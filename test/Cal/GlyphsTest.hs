@@ -16,6 +16,20 @@ unit_hbarEighth = hbar u 2 0.5625 @?= "█▏"
 unit_hbarAscii = hbar a 4 0.6 @?= "##"
 unit_hbarClamp = hbar u 3 1.7 @?= "███"
 
+-- | Week's column bars (design F5): bottom-aligned, eighths on top, a
+-- hairline for a small non-zero day, whole cells in ASCII.
+unit_vbar :: Assertion
+unit_vbar = do
+  vbar u 6 1.0 @?= "██████"
+  vbar u 6 0 @?= "      "
+  vbar u 6 0.5 @?= "   ███"
+  vbar u 6 (1 / 48 * 11) @?= "    ▃█"
+  vbar u 6 0.001 @?= "     ▁"
+  vbar u 3 1.7 @?= "███"
+  vbar a 6 0.5 @?= "   ###"
+  vbar a 6 0.6 @?= "  ####"
+  vbar a 6 0.01 @?= "     _"
+
 unit_spark, unit_sparkAscii, unit_sparkFlat :: Assertion
 unit_spark = sparkline u [Nothing, Just 1, Just 8, Just 4.5] @?= "·▁█▅"
 unit_sparkAscii = sparkline a [Just 1, Just 8] @?= "_^"

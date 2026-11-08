@@ -1,6 +1,6 @@
 -- | Glyph sets (UTF-8 / ASCII) and small text graphics. Pure.
 module Cal.Glyphs
-  ( BoxChars (..), Glyphs (..), glyphsFor, hbar, sparkline, lineChart
+  ( BoxChars (..), Glyphs (..), glyphsFor, hbar, vbar, sparkline, lineChart
   ) where
 
 import Data.Bits (setBit)
@@ -26,6 +26,9 @@ data Glyphs = Glyphs
   , gBarThin, gBarTrack, gBarTrackPlain :: !Char
     -- ^ thin bar, its track in colour, its track without colour
   , gBarPair :: !(Maybe Char)  -- ^ one cell holding two stacked bars (fg over bg)
+  , gColEighths :: ![Char]  -- ^ lower eighths for the top of a column bar (none in ASCII)
+  , gHairline :: !Char  -- ^ a column bar too short to show one eighth
+  , gDashRule :: !Char  -- ^ dashed rule between items
   , gBox :: !BoxChars }
   deriving (Eq, Show)
 
@@ -39,6 +42,7 @@ glyphsFor GlyphsUtf8 = Glyphs
   , gKeyArrows = "←↑↓→", gKeyUpDown = "↑↓", gKeyLeftRight = "←→", gKeyEnter = "⏎", gDelta = "Δ"
   , gMixRank = "━═┅┄"
   , gBarThin = '━', gBarTrack = '━', gBarTrackPlain = '─', gBarPair = Just '▀'
+  , gColEighths = "▁▂▃▄▅▆▇", gHairline = '▁', gDashRule = '┄'
   , gBox = BoxChars '─' '│' '┌' '┐' '└' '┘' '├' '┤' '┬' '┴' '┼' }
 glyphsFor GlyphsAscii = Glyphs
   { gFull = '#', gEighths = [], gSpark = "_.-~^", gSparkMissing = '.'
@@ -49,6 +53,7 @@ glyphsFor GlyphsAscii = Glyphs
   , gKeyArrows = "arrows", gKeyUpDown = "up/down", gKeyLeftRight = "left/right", gKeyEnter = "enter", gDelta = "delta"
   , gMixRank = "#=-."
   , gBarThin = '=', gBarTrack = '-', gBarTrackPlain = '-', gBarPair = Nothing
+  , gColEighths = [], gHairline = '_', gDashRule = '-'
   , gBox = BoxChars '-' '|' '+' '+' '+' '+' '+' '+' '+' '+' '+' }
 
 -- | Horizontal bar of @w@ cells filled to fraction @f@ (clamped 0..1); no padding.
@@ -63,6 +68,23 @@ hbar g w f = T.pack (replicate full (gFull g) ++ partial)
       | eighths >= 8 = (min (max 0 w) (whole + 1), [])
       | eighths >= 1 = (whole, [gEighths g !! (eighths - 1)])
       | otherwise = (whole, [])
+
+-- | A bottom-aligned column bar @h@ rows tall filled to fraction @f@
+-- (clamped 0..1), as one character per row, top row first: whole cells,
+-- then a lower eighth for the top edge ('gColEighths'; whole cells only in
+-- ASCII). A non-zero fraction too small for one eighth shows 'gHairline'
+-- on the bottom row; zero is all blank.
+vbar :: Glyphs -> Int -> Double -> [Char]
+vbar g h f = reverse (take h (body ++ repeat ' '))
+  where
+    f' = max 0 (min 1 f)
+    steps = if null (gColEighths g) then 1 else 8 :: Int
+    n = round (fromIntegral (max 0 h * steps) * f') :: Int
+    (whole, part) = n `divMod` steps
+    body
+      | f' > 0 && n == 0 = [gHairline g]
+      | part == 0 = replicate whole (gFull g)
+      | otherwise = replicate whole (gFull g) ++ [gColEighths g !! (part - 1)]
 
 -- | One character per value, scaled min to max; missing values use 'gSparkMissing'.
 sparkline :: Glyphs -> [Maybe Double] -> Text
