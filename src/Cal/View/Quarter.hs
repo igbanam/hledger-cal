@@ -45,7 +45,10 @@ quarterDoc ctx m = ViewDoc
     contents = [ (qcIndex c, cardContent c) | c <- qmCards m ]
     gridRows = chunks contents
     rowHeights = [ maximum (map (length . bLines . snd) r) | r <- gridRows ]
-    boxedCard h (_, b) = boxed g Nothing cw (hcat 0 [str plain " ", padTo iw (vcat [b, Block 0 (replicate (h - length (bLines b)) (Line []))])])
+    -- the cursor card's border takes the cursor style (design S4)
+    boxedCard h (i, b) =
+      boxedIn (if rcInteractive ctx && i == qmCursor m then cursorBorder else st RRule) g Nothing cw
+        (hcat 0 [str plain " ", padTo iw (vcat [b, Block 0 (replicate (h - length (bLines b)) (Line []))])])
     gridRowBlock h r = hcat gap (map (boxedCard h) r)
     grid = [ gridRowBlock h r | (r, h) <- zip gridRows rowHeights ]
 
@@ -60,11 +63,10 @@ quarterDoc ctx m = ViewDoc
 
     -- one card's content (without its box)
     cardContent c = vcat $ [titleLine c, figures c] ++ mixes c ++ monthBlocks c
-    isCursor c = rcInteractive ctx && qcIndex c == qmCursor m
     monAbbr d = T.pack (formatTime defaultTimeLocale "%b" d)
     enDash = if gDash g == "-" then "-" else "\8211"
     titleLine c =
-      let q = Seg (if isCursor c then inverse (bold (st RCursor)) else bold plain) ("Q" <> T.pack (show (qcIndex c)))
+      let q = Seg (bold plain) ("Q" <> T.pack (show (qcIndex c)))
           months = Seg dim ("  " <> monAbbr (spStart (qcSpan c)) <> " " <> enDash <> " " <> monAbbr (addDays (-1) (spEnd (qcSpan c))))
           left = [q, months]
           right = case qcStatus c of

@@ -13,7 +13,7 @@ import Cal.Doc
 import Cal.Model.Quarter (quarterModel)
 import Cal.View.Quarter (quarterDoc)
 import Cal.View.Types
-import Support (envFor)
+import Support (cellStyles, cursorCells, envFor)
 
 quarterRender :: [String] -> Int -> IO Block
 quarterRender extra w = do
@@ -65,3 +65,26 @@ unit_ascii :: Assertion
 unit_ascii = do
   t <- plainText <$> quarterRender ["-Q", "--ascii"] 100
   assertBool "no en dash" (not ("\8211" `T.isInfixOf` t))
+
+-- | The cursor quarter's card is drawn by its border in the cursor role
+-- (design S4); its Q label is not highlighted; print has no cursor.
+unit_cursorBorder :: Assertion
+unit_cursorBorder = do
+  env <- envFor ["-Q"]
+  let ctx = fromJust (mkRenderCtx env 140 True)
+      body = vdBody (quarterDoc ctx (quarterModel env))
+      cs = cursorCells body
+      ls = T.lines (plainText body)
+      rows = [ r | (r, _, _) <- cs ]
+      cols = [ c | (_, c, _) <- cs ]
+  assertBool "cursor border drawn" (not (null cs))
+  assertBool ("border glyphs only: " ++ show cs) (all (\(_, _, ch) -> ch `elem` ("─│┌┐└┘" :: String)) cs)
+  -- the box around Q4: the right-hand card of the second row
+  let r0 = minimum rows
+      r1 = maximum rows
+  assertBool "Q4 inside" ("Q4" `T.isInfixOf` (ls !! (r0 + 1)))
+  assertBool "right-hand card" (minimum cols > 70 && maximum cols == 139)
+  length cs @?= 2 * (maximum cols - minimum cols + 1) + 2 * (r1 - r0 - 1)
+  assertBool "no inverse Q label" (not (any (\(ch, s) -> ch == 'Q' && stInverse s) (concat (cellStyles body))))
+  let ctx' = fromJust (mkRenderCtx env 140 False)
+  cursorCells (vdBody (quarterDoc ctx' (quarterModel env))) @?= []

@@ -92,7 +92,6 @@ monthDoc ctx m = ViewDoc
       where
         dayT = dayNum (dcDay c)
         daySty
-          | isCursor c = inverse (bold (st RCursor))
           | dcInMonth c = bold plain
           | otherwise = st RFaded
         codeT = case dcForeign c of
@@ -130,11 +129,20 @@ monthDoc ctx m = ViewDoc
         [ [ (any isCursor (fst wk), weekBlock wk)
           , (False, if rowMode then weekRow (snd wk) else ruleLine (if i == nWeeks then bxBT bx else bxX bx)) ]
         | (i, wk) <- zip [1 :: Int ..] weeks ]
-    body = vcat (map snd tagged)
     offsets = scanl (+) 0 [ length (bLines b) | (_, b) <- tagged ]
     cursorRow
       | interactive = lookup True (zip (map fst tagged) offsets)
       | otherwise = Nothing
+    -- the cursor day's cell: its share of the rules around it (design S4)
+    cursorCol = case [ i | wk <- weeks, (i, c) <- zip [0 :: Int ..] (fst wk), isCursor c ] of
+      (i : _) -> Just i
+      [] -> Nothing
+    withCursor b = case (cursorRow, cursorCol) of
+      (Just r, Just i) ->
+        let h = maybe 0 (length . bLines) (lookup r (zip offsets (map snd tagged)))
+        in cursorRect (r - 1, i * cellW - 1) (r + h, i * cellW + cellW - 1) b
+      _ -> b
+    body = withCursor (vcat (map snd tagged))
 
     -- * Bottom panels
     full = tier == TierFull

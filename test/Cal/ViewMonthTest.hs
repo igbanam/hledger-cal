@@ -14,7 +14,7 @@ import Cal.Model.Month (monthModel)
 import Cal.Types (Settings (..))
 import Cal.View.Month (monthDoc)
 import Cal.View.Types
-import Support (edgePath, envFor)
+import Support (cellStyles, cursorCells, edgePath, envFor)
 
 monthRender :: [String] -> Int -> IO Block
 monthRender args w = do
@@ -143,3 +143,29 @@ unit_ascii = do
   t <- plainText <$> monthRender (oct ++ ["--ascii"]) 140
   let bad = [ c | c <- T.unpack t, fromEnum c > 127, c `notElem` ("₦$€₹—" :: String) ]
   assertBool ("non-ASCII glyphs: " ++ show (take 20 bad)) (null bad)
+
+-- | The cursor day's whole cell is drawn by its border in the cursor role
+-- (design S4); no label is highlighted; print has no cursor.
+unit_cursorBorder :: Assertion
+unit_cursorBorder = do
+  env <- envFor ["-M", "-p", "2026-10-30"]
+  let ctx = fromJust (mkRenderCtx env 140 True)
+      d = monthDoc ctx (monthModel env)
+      body = vdBody d
+      cs = cursorCells body
+      rows = [ r | (r, _, _) <- cs ]
+      colsAt r = [ c | (r', c, _) <- cs, r' == r ]
+      bodyLines = T.lines (plainText body)
+  r <- maybe (assertFailure "no cursor row") pure (vdCursorRow d)
+  assertBool ("cursor cells are border glyphs: " ++ show cs) (all (\(_, _, ch) -> ch `elem` ("─│┼┴┬├┤" :: String)) cs)
+  (minimum rows, maximum rows) @?= (r - 1, r + 3)
+  -- the top rule spans the cell, from one divider to the next
+  let top = colsAt (r - 1)
+      (c0, c1) = (minimum top, maximum top)
+  assertBool ("30 sits inside the box: " ++ show (c0, c1)) (" 30 " `T.isInfixOf` T.take (c1 - c0) (T.drop (c0 + 1) (bodyLines !! r)))
+  colsAt (r + 3) @?= top
+  mapM_ (\i -> colsAt i @?= [c0, c1]) [r .. r + 2]
+  -- no reverse-video label anywhere in the body
+  assertBool "no inverse cell" (not (any (stInverse . snd) (concat (cellStyles body))))
+  let ctx' = fromJust (mkRenderCtx env 140 False)
+  cursorCells (vdBody (monthDoc ctx' (monthModel env))) @?= []
