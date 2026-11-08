@@ -611,3 +611,16 @@ unit_filterDate2 = do
   let s = run s0 (CmdFilterOpen : map CmdFilterChar "acct:fuel date2:2026-09" ++ [CmdFilterSubmit])
   fmap fst (usMessage s) @?= Just "date2:2026-09 has no meaning in hledger cal"
   st s @?= st s0
+
+-- | Backspace drops the last character of the filter draft and of the
+-- picker filter, and does nothing to an empty one.
+unit_backspaceEdits :: IO ()
+unit_backspaceEdits = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  usPane (run s0 (CmdFilterOpen : map CmdFilterChar "ab" ++ [CmdFilterBackspace]))
+    @?= PaneFilter "a" PaneNone
+  usPane (run s0 [CmdFilterOpen, CmdFilterChar 'a', CmdFilterBackspace, CmdFilterBackspace])
+    @?= PaneFilter "" PaneNone
+  usPane (run s0 [CmdPickerOpen, CmdPickerChar 'u', CmdPickerChar 's', CmdPickerBackspace])
+    @?= PanePicker "u" 0 PaneNone
+  usPane (run s0 [CmdPickerOpen, CmdPickerBackspace]) @?= PanePicker "" 0 PaneNone

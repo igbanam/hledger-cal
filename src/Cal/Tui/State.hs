@@ -169,7 +169,7 @@ step now cmd us = case cmd of
     let i = fromMaybe 0 (elemIndex (sValuation s) (map peValuation (pickerEntries (usEnv us))))
     in done us { usPane = PanePicker "" i returnTo }
   CmdPickerChar c -> done (onPicker (`T.snoc` c) us)
-  CmdPickerBackspace -> done (onPicker (\t -> if T.null t then t else T.init t) us)
+  CmdPickerBackspace -> done (onPicker dropLast us)
   CmdPickerMove n -> done $ case usPane us of
     PanePicker f i ret ->
       let count = length (pickerMatches f (pickerEntries (usEnv us)))
@@ -198,7 +198,7 @@ step now cmd us = case cmd of
     _ -> us { usPane = PaneNone }
   CmdFilterOpen -> done us { usPane = PaneFilter (T.unwords (sQueryArgs s)) returnTo }
   CmdFilterChar c -> done (onDraft (`T.snoc` c) us)
-  CmdFilterBackspace -> done (onDraft (\t -> if T.null t then t else T.init t) us)
+  CmdFilterBackspace -> done (onDraft dropLast us)
   CmdFilterSubmit -> done $ case usPane us of
     PaneFilter draft ret -> (submitFilter now draft us) { usPane = afterSubmit ret }
     _ -> us
@@ -240,6 +240,10 @@ pickerMatches f = filter matches
     keys e = peLabel e : case peValuation e of
       ValuedIn c -> c : codeOf c : maybe [] pure (symbolOf c)
       Native -> []
+
+-- | Backspace in a typed line: the last character goes, if there is one.
+dropLast :: Text -> Text
+dropLast t = if T.null t then t else T.init t
 
 -- | Edit the picker's filter, keeping the highlighted entry when it still
 -- matches, else highlighting the first match.
