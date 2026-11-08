@@ -2,44 +2,22 @@
 -- | The Year face: four quarter groups. At ≥ 140 columns each quarter is a
 -- row of boxes, a quarter summary and three month cards (design F2);
 -- narrower, a group of month rows. Pure.
-module Cal.View.Year (yearDoc, monthRowBlocks, cardHint) where
+module Cal.View.Year (yearDoc) where
 
 import Data.List (intersperse)
-import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time.Calendar (toGregorian)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 
 import Cal.Currency (symbolOf)
 import Cal.Doc
-import Cal.Format (Fmt, fmtAbs, fmtDayMon, fmtNative, fmtPct, fmtQty, fmtScale, fmtSigned)
+import Cal.Format (fmtAbs, fmtDayMon, fmtPct, fmtScale, fmtSigned)
 import Cal.Glyphs (BoxChars (..), Glyphs (..))
-import Cal.Model.Shared (ForecastHint (..), MonthRow (..))
+import Cal.Model.Shared (MonthRow (..))
 import Cal.Model.Year
 import Cal.Theme (Role (..))
 import Cal.Types
 import Cal.View.Chrome
 import Cal.View.Types
-
-padSeg :: Int -> Seg -> [Seg]
-padSeg n sg@(Seg _ t) = [sg, spaces (n - textW t)]
-
--- | English ordinal: 1st, 2nd, 3rd, 4th, 11th, 21st ...
-ordinal :: Int -> Text
-ordinal n = T.pack (show n) <> suffix
-  where
-    suffix
-      | n `mod` 100 `elem` [11, 12, 13] = "th"
-      | n `mod` 10 == 1 = "st"
-      | n `mod` 10 == 2 = "nd"
-      | n `mod` 10 == 3 = "rd"
-      | otherwise = "th"
-
-dayOf :: Day -> Int
-dayOf d = let (_, _, x) = toGregorian d in x
-
-monAbbr :: Day -> Text
-monAbbr = T.pack . formatTime defaultTimeLocale "%b"
 
 yearOf :: Day -> Integer
 yearOf d = let (y, _, _) = toGregorian d in y
@@ -239,94 +217,3 @@ yearGrid ctx m cursor = (vcat (intersperse (Block 0 [Line []]) rowsB), cursorRow
              in vcat [ line ([Seg dim (if i == 0 then label else T.replicate (textW label) " ")] ++ [spaces (iw - textW label - textW t), Seg plain t])
                      | (i, t) <- zip [0 :: Int ..] ps ]
 
--- | A forecast hint in @n@ columns: whole on one line when it fits, else
--- with the description shortened, else the description and the figures on
--- two lines; the figures are never cut.
-cardHint :: Glyphs -> Fmt -> Int -> ForecastHint -> [Text]
-cardHint g f n h
-  | textW whole <= n = [whole]
-  | descRoom >= 8 = ["forecast " <> truncEnd g descRoom (fhDescription h) <> " " <> figs]
-  | otherwise = truncEnd g n ("forecast " <> fhDescription h) : wrapFig g n figs
-  where
-    figs = hintFigures g f h
-    whole = "forecast " <> fhDescription h <> " " <> figs
-    descRoom = n - textW "forecast " - 1 - textW figs
-
--- | A hint's figures: the native total, then its valued total.
-hintFigures :: Glyphs -> Fmt -> ForecastHint -> Text
-hintFigures g f h = fmtNative f (fhNative h)
-  <> maybe "" (\v -> (" " <> gApprox g <> " ") <> fmtQty f (negate v)) (fhValued h)
-  <> (if fhMore h > 0 then " +" <> T.pack (show (fhMore h)) else "")
-
--- | Month rows (two lines each, one for a future month with no postings) as
--- tagged blocks, the flag marking the row holding the cursor day. @w@ is the
--- width available, @bwFor@ turns the width the figure columns need into the
--- bar width, @sizing@ are the rows the column widths are measured over.
-monthRowBlocks :: RenderCtx -> Int -> Bool -> (Int -> Int) -> Maybe Day -> [MonthRow] -> [MonthRow] -> [(Bool, Block)]
-monthRowBlocks ctx w showSyms0 bwFor cursor sizing rows = [ (isCursorRow r, rowBlock r) | r <- rows ]
-  where
-    g = rcGlyphs ctx
-    f = rcFmt ctx
-    today = sToday (rcSettings ctx)
-    showSyms = showSyms0 && rcTier ctx >= Tier120
-    nameW = 11
-    symW = if showSyms then 12 else 0
-    needFig = maximum (0 : [ textW (fmtAbs f x) | r <- sizing, x <- [mrIncome r, mrExpenses r] ])
-    needNet = maximum (0 : [ textW (fmtSigned f (mrNet r)) | r <- sizing ])
-    bw = bwFor (needFig + needNet)
-    avail = w - (2 + nameW + symW + bw) - 4 - 3
-    netW0 = min needNet (avail `div` 2)
-    figW = min needFig (avail - netW0)
-    netW = min needNet (avail - figW)
-
-    rowBlock r
-      | mrStatus r == Future && not (mrHasPostings r) = futureRow r
-      | otherwise = vcat [row1 r, row2 r]
-    isCursorRow r = case cursor of
-      Just c -> spStart (mrSpan r) <= c && c < spEnd (mrSpan r)
-      Nothing -> False
-    nameSegs r =
-      let nm = monAbbr (spStart (mrSpan r))
-          nmSty = if isCursorRow r then inverse (bold (st RCursor)) else bold plain
-          extra = if mrStatus r == Open then " to " <> ordinal (dayOf today) else ""
-      in [Seg nmSty nm, Seg dim extra] ++ [spaces (nameW - textW nm - textW extra)]
-    symSegs r
-      | not showSyms = []
-      | otherwise = padSeg symW (Seg dim (truncEnd g (symW - 1) (T.unwords [ maybe c id (symbolOf c) | c <- mrCommodities r ])))
-    barSegs role frac = case frac of
-      Nothing -> [spaces bw]
-      Just x -> thinBar ctx role bw x
-    fig :: Int -> Style -> Text -> Seg
-    fig fw sty t = let t' = truncEnd g fw t in Seg sty (T.replicate (fw - textW t') " " <> t')
-    row1 r = line $
-      [spaces 2] ++ nameSegs r ++ symSegs r ++ barSegs RInc (mrInFrac r)
-      ++ [spaces 2, fig figW plain (fmtAbs f (mrIncome r)), spaces 2
-         , fig netW (if mrOverspent r then st RExp else plain) (fmtSigned f (mrNet r))]
-      ++ [Seg (st RExp) (" " <> gOverspent g) | mrOverspent r]
-      ++ [Seg dim (" " <> gOpen g) | mrStatus r == Open]
-    row2 r = line $
-      [spaces (2 + nameW + symW)] ++ barSegs RExp (mrOutFrac r)
-      ++ [spaces 2, fig figW plain (fmtAbs f (mrExpenses r))]
-    noPostings = gDash g <> "  no postings yet"
-    lead = 2 + nameW + symW
-    -- the hint follows on the same line when it fits whole, else on its own
-    -- line beneath, where the description shrinks first
-    futureRow r = vcat $
-      line ([spaces 2] ++ nameSegs r ++ symSegs r ++ [Seg dim noPostings] ++ [ Seg dim ("  " <> t) | Just t <- [sameLine] ])
-        : [ line [spaces lead, Seg dim t] | Nothing <- [sameLine], Just h <- [mrHint r], t <- hintLines (w - lead) h ]
-      where
-        room = w - (lead + textW noPostings + 2)
-        sameLine = case mrHint r of
-          Just h | textW (hintText h) <= room -> Just (hintText h)
-          _ -> Nothing
-    -- the figures: the native total, then its valued total; kept whole
-    hintFigs = hintFigures g f
-    hintText h = "forecast " <> fhDescription h <> " " <> hintFigs h
-    hintLines n h
-      | textW (hintText h) <= n = [hintText h]
-      | descRoom >= 2 = ["forecast " <> truncEnd g descRoom (fhDescription h) <> " " <> hintFigs h]
-      | textW short <= n = [short]
-      | otherwise = wrapFig g n (hintFigs h)
-      where
-        descRoom = n - textW "forecast " - 1 - textW (hintFigs h)
-        short = "forecast " <> hintFigs h

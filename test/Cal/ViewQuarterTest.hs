@@ -12,7 +12,9 @@ import Test.Tasty.HUnit
 
 import Cal.Doc
 import Cal.Theme (Role (..))
-import Cal.Model.Quarter (quarterModel)
+import Cal.Format (fmtSigned)
+import Cal.Model.Common (Kpis (..))
+import Cal.Model.Quarter (QuarterCard (..), QuarterModel (..), quarterModel)
 import Cal.View.Quarter (quarterDoc)
 import Cal.View.Types
 import Support (cellStyles, cursorCells, envFor)
@@ -25,6 +27,7 @@ quarterRender extra w = do
 
 variants :: [(String, [String], Int)]
 variants = [ ("quarter-2026-" ++ show w, ["-Q"], w) | w <- [140, 120, 100, 80] ]
+  ++ [ ("quarter-2026-native-" ++ show w, ["-Q", "--native"], w) | w <- [140, 100] ]
 
 utf8 :: Text -> BL.ByteString
 utf8 t = BL.fromStrict (TE.encodeUtf8 (t <> "\n"))
@@ -167,3 +170,22 @@ unit_currentQuarterChipOnly = do
   assertBool ("cursor on Q1 only: " ++ show cs) (all (\(_, c, _) -> c < 70) cs)
   assertBool ("no accent cells: " ++ show accent) (null accent)
   assertBool "Q4 chip" ("in progress · to 6 Nov" `T.isInfixOf` plainText body)
+
+-- | Native KPI figures are never cut (rule I7): every amount of every
+-- card's income, expenses, net and FX figure appears whole, one amount per
+-- line where the figure has to wrap.
+unit_nativeFiguresWhole :: Assertion
+unit_nativeFiguresWhole = forM_ [200, 140, 120, 100, 80] $ \w -> do
+  env <- envFor ["-Q", "--native"]
+  let ctx = fromJust (mkRenderCtx env w False)
+      f = rcFmt ctx
+      m = quarterModel env
+      t = plainText (vdBody (quarterDoc ctx m))
+      minus = "\8722"
+      amounts x = filter (not . T.null) (map T.strip (T.splitOn "\0" (T.replace " + " "\0+ " (T.replace (" " <> minus <> " ") ("\0" <> minus <> " ") x))))
+      figs = concat [ [fmtSigned f (kIncome k), fmtSigned f (negate (kExpenses k)), fmtSigned f (kNet k)]
+                      | c <- qmCards m, let k = qcKpis c ]
+  forM_ (concatMap amounts figs) $ \a ->
+    assertBool (show w ++ ": " ++ T.unpack a) (a `T.isInfixOf` t)
+  assertBool (show w ++ ": no cut figure") (not (any ("\8230 " `T.isPrefixOf`) (T.words t)))
+  assertBool (show w ++ ": no bare ellipsis") (not ("  \8230 " `T.isInfixOf` t))

@@ -2,10 +2,9 @@
 -- | The Quarter face: a grid of quarter cards and a year-to-date strip. Pure.
 module Cal.View.Quarter (quarterDoc) where
 
-import Data.List (intercalate)
+import Data.List (intercalate, intersperse)
 import qualified Data.Text as T
 import Data.Time.Calendar (addDays, toGregorian)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 
 import Cal.Currency (codeOf)
 import Cal.Doc
@@ -18,7 +17,6 @@ import Cal.Theme (Role (..))
 import Cal.Types
 import Cal.View.Chrome
 import Cal.View.Types
-import Cal.View.Year (cardHint, monthRowBlocks)
 
 quarterDoc :: RenderCtx -> QuarterModel -> ViewDoc
 quarterDoc ctx m = ViewDoc
@@ -58,13 +56,15 @@ quarterDoc ctx m = ViewDoc
     gridRowBlock h r = hcat gap (map (boxedCard h) r)
     grid = [ gridRowBlock h r | (r, h) <- zip gridRows rowHeights ]
 
-    body = vcat (grid ++ [Block 0 [Line []], strip])
+    -- two columns (≥ 100): a blank row between the card rows, as in Year
+    rowGap = if single then 0 else 1
+    body = vcat (intersperse (Block 0 (replicate rowGap (Line []))) grid ++ [Block 0 [Line []], strip])
 
     -- row of the cursor quarter's title: each box adds a border line
     cursorRow
       | not (rcInteractive ctx) = Nothing
       | otherwise = case [ i | (i, r) <- zip [0 :: Int ..] gridRows, any ((== qmCursor m) . fst) r ] of
-          (i : _) -> Just (sum (take i [ h + 2 | h <- rowHeights ]) + 1)
+          (i : _) -> Just (sum (take i [ h + 2 + rowGap | h <- rowHeights ]) + 1)
           [] -> Nothing
 
     -- one card's content (without its box): the part above the flexible
@@ -75,7 +75,6 @@ quarterDoc ctx m = ViewDoc
     cardContent c
       | single = (vcat ([titleLine c, figures c] ++ monthBlocks c), emptyB)
       | otherwise = (vcat ([titleLine c, blank, figures c] ++ mixRows c ++ [blank]), vcat (map monthRow (qcMonths c)))
-    monAbbr d = T.pack (formatTime defaultTimeLocale "%b" d)
     enDash = if gDash g == "-" then "-" else "\8211"
     titleLine c =
       let q = Seg (bold plain) ("Q" <> T.pack (show (qcIndex c)))
@@ -88,26 +87,68 @@ quarterDoc ctx m = ViewDoc
           rw = segsW [right]
           lw = segsW left
       in line (left ++ [spaces (iw - lw - rw), right])
-    -- the four figure columns of a card; widths and layout are shared by all cards
-    figCols wide c =
+    -- the four figure columns of a card; widths and layout are shared by
+    -- all cards. When the natural widths fit (gap 2) a figure sits on one
+    -- line; otherwise every column gets a fixed share, four across when each
+    -- single amount fits its share, else two by two (income | expenses over
+    -- net | FX), and a multi-commodity figure wraps one amount per line, so
+    -- no figure is ever cut.
+    figTexts c =
       let k = qcKpis c
-          pct = maybe (gDash g) (fmtPct f) (kSpent k)
-          netLabel = str dim ("net" <> gSep g <> "spent")
-          net = fmtSigned f (kNet k)
+      in ( fmtSigned f (kIncome k), fmtSigned f (negate (kExpenses k)), fmtSigned f (kNet k)
+         , maybe (gDash g) (fmtPct f) (kSpent k), maybe (gDash g) (fmtQty f) (kFx k) )
+    fxSty c = case kFx (qcKpis c) of
+      Just q -> bold (st (if q < 0 then RExp else if q > 0 then RInc else RText))
+      Nothing -> bold dim
+    netLabel = "net" <> gSep g <> "spent"
+    labels = ["income", "expenses", netLabel, "FX effect"]
+    -- natural layout: each figure on one line; @wide@ puts the % beside the net
+    figCols wide c =
+      let (inc, ex, net, pct, fx) = figTexts c
           netCol
-            | wide = vcat [netLabel, line [Seg (bold plain) net, Seg dim (" " <> pct)]]
-            | otherwise = vcat [netLabel, str (bold plain) net, str dim pct]
-      in [ vcat [str dim "income", str (bold (st RInc)) (fmtSigned f (kIncome k))]
-         , vcat [str dim "expenses", str (bold (st RExp)) (fmtSigned f (negate (kExpenses k)))]
+            | wide = vcat [str dim netLabel, line [Seg (bold plain) net, Seg dim (" " <> pct)]]
+            | otherwise = vcat [str dim netLabel, str (bold plain) net, str dim pct]
+      in [ vcat [str dim "income", str (bold (st RInc)) inc]
+         , vcat [str dim "expenses", str (bold (st RExp)) ex]
          , netCol
-         , vcat [str dim "FX effect", line [maybe (Seg (bold dim) (gDash g)) fxSeg (kFx k)]] ]
+         , vcat [str dim "FX effect", str (fxSty c) fx] ]
+    -- wrapped layout: each column @n@ wide
+    wrapCols n c =
+      let (inc, ex, net, pct, fx) = figTexts c
+          perAmount t = let as = amountsOf t in if all ((<= n) . textW) as then as else wrapFig g n t
+          wrapped sty t = [ str sty x | x <- perAmount t ]
+          netLines = perAmount net
+          -- no % spent (native): nothing after the net, a lone dash would read as a minus
+          netCol = case reverse netLines of
+            _ | kSpent (qcKpis c) == Nothing -> map (str (bold plain)) netLines
+            (lastL : before) | textW lastL + 1 + textW pct <= n ->
+              map (str (bold plain)) (reverse before) ++ [line [Seg (bold plain) lastL, Seg dim (" " <> pct)]]
+            _ -> map (str (bold plain)) netLines ++ [str dim pct]
+      in [ vcat (str dim "income" : wrapped (bold (st RInc)) inc)
+         , vcat (str dim "expenses" : wrapped (bold (st RExp)) ex)
+         , vcat (str dim netLabel : netCol)
+         , vcat (str dim "FX effect" : wrapped (fxSty c) fx) ]
     colWidths wide = foldr1 (zipWith max) [ map bWidth (figCols wide c) | c <- qmCards m ]
-    wideNet = sum (colWidths True) + 2 * 3 <= iw
-    colGap = if sum (colWidths wideNet) + 2 * 3 <= iw then 2 else 1
-    figures c =
-      let ws = colWidths wideNet
-          share = max 0 (iw - sum ws - colGap * 3) `div` 4
-      in hcat colGap [ padTo (cwid + share) col | (col, cwid) <- zip (figCols wideNet c) ws ]
+    fits wide = sum (colWidths wide) + 2 * 3 <= iw
+    -- the widest single amount (an operator stays with its amount) or label
+    atomW = maximum (map textW labels ++ [ textW a | c <- qmCards m, let (i, e, n, _, x) = figTexts c
+                                                     , t <- [i, e, n, x], a <- amountsOf t ])
+    amountsOf t = filter (not . T.null) (map T.strip (T.splitOn "\0" (T.replace (" + ") "\0+ " (T.replace (" " <> gMinus g <> " ") ("\0" <> gMinus g <> " ") t))))
+    share4 = (iw - 2 * 3) `div` 4
+    share2 = (iw - 2) `div` 2
+    figures c
+      | fits True = natural True
+      | fits False = natural False
+      | atomW <= share4 = hcat 2 [ padTo share4 col | col <- wrapCols share4 c ]
+      | otherwise =
+          let cols = wrapCols share2 c
+              rowOf xs = hcat 2 [ padTo share2 col | col <- xs ]
+          in vcat [rowOf (take 2 cols), rowOf (drop 2 cols)]
+      where
+        natural wide =
+          let ws = colWidths wide
+              sh = max 0 (iw - sum ws - 2 * 3) `div` 4
+          in hcat 2 [ padTo (cwid + sh) col | (col, cwid) <- zip (figCols wide c) ws ]
     fxSeg q = Seg (bold (st (if q < 0 then RExp else if q > 0 then RInc else RText))) (fmtQty f q)
 
     -- the label column shared by the mix and month rows
@@ -132,10 +173,9 @@ quarterDoc ctx m = ViewDoc
               | (i, l) <- zip [0 :: Int ..] legendLines ]
 
     -- month rows: the name, one paired in/out bar, the net at the card's right edge
-    allMonthRows = concatMap qcMonths (qmCards m)
     netSuffix r = [ Seg (st RExp) (" " <> gOverspent g) | mrOverspent r ] ++ [ Seg dim (" " <> gOpen g) | mrStatus r == Open ]
     isEmpty r = mrStatus r == Future && not (mrHasPostings r)
-    rightNeed = maximum (0 : [ textW (fmtSigned f (mrNet r)) + segsW (netSuffix r) | r <- allMonthRows, not (isEmpty r) ])
+    rightNeed = maximum (0 : [ textW (fmtSigned f (mrNet r)) + segsW (netSuffix r) | r <- allMonths, not (isEmpty r) ])
     rightW = min rightNeed (iw - lead - 4 - 3)
     monthBw = max 4 (min (iw * 7 `div` 10) (iw - lead - 3 - rightW))
     monthName r = Seg plain (monAbbr (spStart (mrSpan r)))

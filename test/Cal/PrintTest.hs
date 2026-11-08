@@ -3,6 +3,7 @@ module Cal.PrintTest where
 import Control.Monad (forM, forM_, unless)
 import Data.Char (GeneralCategory (..), generalCategory, isDigit)
 import Data.List (isSuffixOf)
+import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString as BS
@@ -76,17 +77,46 @@ unit_mainBadJournal = do
   assertBool "stderr non-empty" (not (null err))
 
 -- | No golden may show a cut figure: an ellipsis straight after a digit, a
--- digit-group comma or a currency symbol.
+-- digit-group comma or a currency symbol, or a bare ellipsis (a figure cut
+-- down to nothing; see 'bareCuts').
 unit_goldensHaveNoCutFigures :: Assertion
 unit_goldensHaveNoCutFigures = do
   files <- filter (".txt" `isSuffixOf`) <$> listDirectory "test/golden"
   assertBool "goldens found" (not (null files))
   found <- fmap concat $ forM files $ \name -> do
     t <- TE.decodeUtf8 <$> BS.readFile ("test/golden/" ++ name)
-    pure [ name ++ ":" ++ show i ++ ": figure cut after " ++ T.unpack c
+    pure $ [ name ++ ":" ++ show i ++ ": figure cut after " ++ T.unpack c
          | (i, l) <- zip [1 :: Int ..] (T.lines t), c <- cutsIn l ]
+      ++ [ name ++ ":" ++ show i ++ ": bare ellipsis: " ++ T.unpack (T.strip l)
+         | (i, l) <- zip [1 :: Int ..] (T.lines t), not (null (bareCuts l)) ]
   unless (null found) (assertFailure (unlines found))
   where
     cutsIn l = [ T.takeEnd 12 before | ell <- ["…", "..."], (before, _) <- T.breakOnAll ell l
                                      , Just (_, c) <- [T.unsnoc before], isFigureChar c ]
     isFigureChar c = isDigit c || c == ',' || generalCategory c == CurrencySymbol
+
+-- | Ellipses standing alone in a cell: preceded by the start of the line, a
+-- box edge or at least two spaces, and followed by the end of the line, a
+-- box edge or at least two spaces. That is a figure truncated down to its
+-- ellipsis. The open-month marker ("+2,090,000 …") and shortened text
+-- ("Househo…") sit against their text and are not caught.
+bareCuts :: Text -> [Int]
+bareCuts l =
+  [ i | ell <- ["…", "..."], (before, rest) <- T.breakOnAll ell l
+      , let after = T.drop (T.length ell) rest
+            b' = T.dropWhileEnd (== ' ') before
+            a' = T.dropWhile (== ' ') after
+            i = T.length before
+      , T.null b' || T.last b' `elem` edges || T.length before - T.length b' >= 2
+      , T.null a' || T.head a' `elem` edges || "  " `T.isPrefixOf` after ]
+  where
+    edges = "│|┆:" :: String
+
+unit_bareCuts :: Assertion
+unit_bareCuts = do
+  assertBool "cell cut to an ellipsis" (not (null (bareCuts "│ income        expenses        … │")))
+  assertBool "column cut to an ellipsis" (not (null (bareCuts "+1,000    …    −18,000")))
+  assertBool "ASCII" (not (null (bareCuts "| income   ... |")))
+  bareCuts "│ Nov  ▀▀▀   +2,090,000 … │" @?= []
+  bareCuts "│ Dec  · no postings yet (forecast Househo… $1,200.00) │" @?= []
+  bareCuts "│ Nov to 6th   +2,090,000 ... │" @?= []
