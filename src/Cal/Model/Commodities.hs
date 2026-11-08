@@ -137,10 +137,15 @@ commoditiesModel env cursor = CommoditiesModel
               (cost, q) <- acquisitions b c
               if q == 0 then Nothing else Just (v - h * cost / q)
             _ -> Nothing
+          -- display only: a stale price is not carried past its date, so
+          -- the month-ends after it show no price
+          spark = case (info, stale) of
+            (Just i, Just _) -> [ if d > riDate i then Nothing else v | (d, v) <- series c ]
+            _ -> map snd (series c)
       in CommodityRow
            { crCommodity = c, crIsBase = isBase, crHeld = h
            , crChange = M.findWithDefault 0 c changed
-           , crPrice = info, crDeltaPct = delta, crSpark = map snd (series c)
+           , crPrice = info, crDeltaPct = delta, crSpark = spark
            , crValue = val, crShare = Nothing, crGain = gain
            , crStale = stale
            , crUnit = unitOf c

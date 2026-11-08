@@ -87,3 +87,12 @@ unit_units = do
   d <- cm
   [ (crCommodity r, crUnit r) | r <- cmCurrencies d ++ cmSecurities d, crUnit r /= Nothing ]
     @?= [("VOO", Just "sh"), ("MTNN", Just "sh")]
+
+-- | A stale price is not carried forward in the sparkline: AED's last price
+-- is 14 Aug, so Aug, Sep and Oct month-ends have none. Its value still uses it.
+unit_sparkStale :: Assertion
+unit_sparkStale = do
+  c <- cm
+  fmap (map (fmap (const ())) . crSpark) (row "Dh" c)
+    @?= Just (replicate 2 Nothing ++ replicate 7 (Just ()) ++ replicate 3 Nothing)
+  fmap crValue (row "Dh" c) @?= Just (Just 211000)
