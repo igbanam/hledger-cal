@@ -150,3 +150,13 @@ unit_dateQueryPrintsAsPeriod = do
   a <- envFor ["-M", "date:2026-10", "--color=never"]
   b <- envFor ["-M", "-p", "2026-10", "--color=never"]
   renderPrint a 140 @?= renderPrint b 140
+
+-- | An interval the calendar has no face for is rejected, named as typed.
+unit_rejectsFacelessInterval :: Assertion
+unit_rejectsFacelessInterval = do
+  let viaP p = Left ("the interval in -p \"" ++ p ++ "\" has no meaning in hledger cal; use -Y, -Q, -M or -W")
+  mapM rejected [["-p", "daily in 2026-10"], ["-p", "every 2 weeks in 2026-10"], ["-p", "every 2 days"], ["-D", "-p", "bimonthly"]]
+    >>= (@?= map viaP ["daily in 2026-10", "every 2 weeks in 2026-10", "every 2 days", "bimonthly"])
+  rejected ["-p", "every 2 weeks", "-D"] >>= (@?= Left "-D/--daily has no meaning in hledger cal")
+  mapM rejected [["-p", "weekly in 2026-10"], ["-p", "daily in 2026-10", "-M"]] >>= (@?= [Right (), Right ()])
+  face ["-p", "weekly in 2026-10"] >>= (@?= FaceWeek)

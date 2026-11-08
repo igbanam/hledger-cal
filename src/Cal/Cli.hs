@@ -22,9 +22,9 @@ import Data.Time.Calendar.WeekDate (fromWeekDate)
 import Hledger.Cli
   ( CliOpts (..), Mode, YNA (..), argsFlag, flagNone, flagReq, getHledgerCliOpts'
   , helpflags, hledgerCommandMode, inputflags, reportflags )
-import Hledger.Data.Dates (fromEFDay)
+import Hledger.Data.Dates (fromEFDay, parsePeriodExpr)
 import Hledger.Data.RawOptions
-  (RawOpts, boolopt, listofstringopt, maybestringopt, maybeposintopt, setboolopt, setopt)
+  (RawOpts, boolopt, collectopts, listofstringopt, maybestringopt, maybeposintopt, setboolopt, setopt)
 import qualified Hledger.Data.Types as H
 import Hledger.Data.Valuation (ConversionOp (..), ValuationType (..))
 import Hledger.Query (filterQuery, parseQuery, queryDateSpan, queryIsDateOrDate2)
@@ -77,8 +77,8 @@ mkSettings today term opts j = do
   case (native, value) of
     (True, Just _) -> Left "--native can't be combined with -X, -V or --value"
     _ -> pure ()
-  case unsupportedFlags opts ropts of
-    (flag : _) -> Left (flag ++ " has no meaning in hledger cal")
+  case unsupportedFlags today opts ropts of
+    (problem : _) -> Left problem
     [] -> pure ()
   let queryArgs = dropDateArgs today (map T.pack (listofstringopt "args" raw))
       -- The focus period drives dates, so date terms are dropped (a date:
@@ -152,18 +152,39 @@ mkSettings today term opts j = do
     , sJournalFile = journalFile, sOutput = output, sGlyphSet = glyphs, sColor = color }
 
 -- | Report flags that have no calendar meaning and would otherwise be
--- silently ignored, as they are named on the command line.
-unsupportedFlags :: CliOpts -> ReportOpts -> [String]
-unsupportedFlags opts ropts =
-  [ name | (name, given) <-
-      [ ("-D/--daily", interval_ ropts == H.Days 1)
-      , ("--date2", date2_ ropts)
+-- silently ignored, named as they were given on the command line.
+unsupportedFlags :: Day -> CliOpts -> ReportOpts -> [String]
+unsupportedFlags today opts ropts =
+  maybe [] pure (intervalProblem today raw (interval_ ropts))
+    ++ [ name ++ meaningless | (name, given) <-
+      [ ("--date2", date2_ ropts)
       , ("-E/--empty", empty_ ropts)
       , ("--depth", depth_ ropts /= mempty)
       , ("-B/--cost", conversionop_ ropts == Just ToCost)
-      , ("--pretty", isJust (maybestringopt "pretty" (rawopts_ opts)))
+      , ("--pretty", isJust (maybestringopt "pretty" raw))
       , ("--pivot", not (null (pivot_ (inputopts_ opts)))) ]
-  , given ]
+    , given ]
+  where raw = rawopts_ opts
+
+meaningless :: String
+meaningless = " has no meaning in hledger cal"
+
+-- | An interval with no face (daily, every 2 weeks, ...), named by the option
+-- that set it: hledger keeps the last of -D/-W/-M/-Q/-Y and a -p with an
+-- interval.
+intervalProblem :: Day -> RawOpts -> H.Interval -> Maybe String
+intervalProblem today raw ivl
+  | ivl `elem` [H.NoInterval, H.Years 1, H.Quarters 1, H.Months 1, H.Weeks 1] = Nothing
+  | otherwise = Just $ case lastMay (collectopts source raw) of
+      Just (Just p) -> "the interval in -p \"" ++ p ++ "\"" ++ meaningless ++ "; use -Y, -Q, -M or -W"
+      _ -> "-D/--daily" ++ meaningless
+  where
+    source (n, v)
+      | n == "period" = case parsePeriodExpr today (T.pack v) of
+          Right (i, _) | i /= H.NoInterval -> Just (Just v)
+          _ -> Nothing
+      | n `elem` ["daily", "weekly", "monthly", "quarterly", "yearly"] = Just Nothing
+      | otherwise = Nothing
 
 -- | The input options to load the journal with. hledger bounds a
 -- @--forecast@ without its own span by the report period (@-p@), which would
