@@ -173,3 +173,9 @@ unit_rejectsDisjointDates = do
           , "date:2026-09 and date:2026-10 do not overlap", "-p 'last month' and date:2026-08 do not overlap" ])
   mapM rejected [["-p", "2026", "date:2026-10"], ["-p", "2026-09", "-e", "2026-10-15", "date:2026-10"]]
     >>= (@?= [Right (), Right ()])
+
+-- | A date2: term is rejected like --date2, named as typed.
+unit_rejectsDate2Term :: Assertion
+unit_rejectsDate2Term =
+  mapM rejected [["date2:2026-10"], ["acct:fuel", "not:date2:2026-10"]]
+    >>= (@?= map (Left . (++ " has no meaning in hledger cal")) ["date2:2026-10", "not:date2:2026-10"])

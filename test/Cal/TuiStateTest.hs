@@ -603,3 +603,11 @@ unit_filterDisjointDates = do
   let s = run s0 (CmdFilterOpen : map CmdFilterChar "date:2026-09 acct:fuel date:2026-08" ++ [CmdFilterSubmit])
   fmap fst (usMessage s) @?= Just "date:2026-09 and date:2026-08 do not overlap"
   (st s, usPane s) @?= (st s0, PaneNone)
+
+-- | A date2: term in the / filter is rejected as on the command line.
+unit_filterDate2 :: IO ()
+unit_filterDate2 = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let s = run s0 (CmdFilterOpen : map CmdFilterChar "acct:fuel date2:2026-09" ++ [CmdFilterSubmit])
+  fmap fst (usMessage s) @?= Just "date2:2026-09 has no meaning in hledger cal"
+  st s @?= st s0

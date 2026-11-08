@@ -30,7 +30,7 @@ import Hledger.Data.RawOptions
   (RawOpts, boolopt, collectopts, listofstringopt, maybestringopt, maybeposintopt, setboolopt, setopt)
 import qualified Hledger.Data.Types as H
 import Hledger.Data.Valuation (ConversionOp (..), ValuationType (..))
-import Hledger.Query (filterQuery, parseQuery, queryDateSpan, queryIsDate, queryIsDateOrDate2)
+import Hledger.Query (Query (..), filterQuery, parseQuery, queryDateSpan, queryIsDate, queryIsDateOrDate2)
 import Hledger.Read.InputOptions (InputOpts (..))
 import Hledger.Reports.ReportOptions (ReportOpts (..), ReportSpec (..), queryFromFlags, rawOptsToReportSpec)
 import Safe (headMay, lastMay)
@@ -235,18 +235,26 @@ periodFlags raw p = case collectopts named raw of
     named (n, v) = (\flag -> flag <> " " <> quote (T.pack v)) <$> lookup n [("period", "-p"), ("begin", "-b"), ("end", "-e")]
 
 -- | A problem with the date terms of a query, given the -p/-b/-e span (as
--- typed) when there is one: pieces of the report span that don't overlap,
--- named as typed, so hledger's span would be empty.
+-- typed) when there is one: a date2: term, which has no calendar meaning
+-- (as --date2), or pieces of the report span that don't overlap, so
+-- hledger's span would be empty. Terms are named as typed.
 dateTermProblem :: Day -> Maybe (Text, H.DateSpan) -> [Text] -> Maybe String
-dateTermProblem today flags args = listToMaybe
-  [ T.unpack a <> " and " <> T.unpack b <> " do not overlap"
-  | ((a, sa) : rest) <- tails (maybe [] pure flags ++ mapMaybe dateTerm args)
-  , (b, sb) <- rest
-  , isEmptySpan (spanIntersect sa sb) ]
+dateTermProblem today flags args = listToMaybe $
+  [ T.unpack a ++ meaningless | a <- args, either (const False) (hasDate2 . fst) (parseQuery today a) ]
+  ++ [ T.unpack a <> " and " <> T.unpack b <> " do not overlap"
+     | ((a, sa) : rest) <- tails (maybe [] pure flags ++ mapMaybe dateTerm args)
+     , (b, sb) <- rest
+     , isEmptySpan (spanIntersect sa sb) ]
   where
     dateTerm a = case parseQuery today a of
       Right (q, _) | queryIsDate q -> Just (a, queryDateSpan False q)
       _ -> Nothing
+    hasDate2 q = case q of
+      Date2 _ -> True
+      Not x -> hasDate2 x
+      And xs -> any hasDate2 xs
+      Or xs -> any hasDate2 xs
+      _ -> False
     isEmptySpan ds = case ds of
       H.DateSpan (Just s) (Just e) -> fromEFDay e <= fromEFDay s
       _ -> False
