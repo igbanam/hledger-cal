@@ -546,3 +546,51 @@ unit_pickerOnScreen = do
   assertBool "no picker once picked" (not (has "value in" (press o [Vty.KEnter])))
   let r = press s0 [Vty.KEnter, Vty.KChar 'c']
   assertBool "picker over the register" (has "value in" r && has "Register" r)
+
+-- | The screen as seen: the picture's layers composited, top first, each
+-- layer's background fill letting the layers under it show through. A wide
+-- character takes its cell and a '\0' one after it.
+screenGrid :: Vty.Picture -> [String]
+screenGrid pic = foldr1 over (map cells (Vty.picLayers pic))
+  where
+    over top below = [ zipWith pick (pad (length b) t) b | (t, b) <- zip (top ++ repeat []) below ]
+    pick c b = if c == '\1' then b else c
+    pad n r = take n (r ++ repeat '\1')
+    cells img = case img of
+      HorizText _ t _ _ -> [concat [ if Doc.textW (T.singleton c) == 2 then [c, '\0'] else [c] | c <- TL.unpack t ]]
+      HorizJoin l r _ h -> zipWith (\a b -> pad (Vty.imageWidth l) a ++ b) (rows h (cells l)) (rows h (cells r))
+      VertJoin a b _ _ -> cells a ++ cells b
+      BGFill w h -> replicate h (replicate w '\1')
+      Crop i left top w h -> take h [ pad w (take w (drop left r)) | r <- drop top (cells i) ]
+      EmptyImage -> []
+    rows h rs = take h (rs ++ repeat [])
+
+-- | The cells of the one-cell ring around the box whose top border holds
+-- the label: the row above, the row below and the columns either side.
+ringAround :: String -> [String] -> Maybe [Char]
+ringAround label grid = do
+  (top, at) <- only [ (r, c) | (r, row) <- zip [0 ..] grid, c <- take 1 (indicesOf row) ]
+  let row = grid !! top
+      cell r c = (grid !! r) !! c
+  left <- lastMay [ i | i <- [0 .. at], row !! i == '┌' ]
+  right <- firstOf [ i | i <- [at .. length row - 1], row !! i == '┐' ]
+  bottom <- firstOf [ r | r <- [top + 1 .. length grid - 1], cell r left == '└' ]
+  pure ( [ cell r c | r <- [top - 1, bottom + 1], c <- [left - 1 .. right + 1] ]
+           ++ [ cell r c | r <- [top .. bottom], c <- [left - 1, right + 1] ] )
+  where
+    indicesOf row = [ i | i <- [0 .. length row - length label], take (length label) (drop i row) == label ]
+    only xs = case xs of { [x] -> Just x; _ -> Nothing }
+    firstOf xs = case xs of { (x : _) -> Just x; [] -> Nothing }
+    lastMay xs = firstOf (reverse xs)
+
+-- | The picker and the help box are each set off from the view under them
+-- by a blank one-cell ring.
+unit_overlayRing :: IO ()
+unit_overlayRing = do
+  s0 <- (\u -> u { usWidth = 140 }) <$> mk ["-M", "-p", "2026-10-30"]
+  let grid us = screenGrid (renderWidget (Just calAttrMap) (draw (appStateFor us t0)) (140, 45))
+      picker = grid (press s0 [Vty.KChar 'c'])
+      help = grid (press s0 [Vty.KChar '?'])
+      blank = fmap (all (== ' '))
+  assertEqual (unlines picker) (Just True) (blank (ringAround "value in" picker))
+  assertEqual (unlines help) (Just True) (blank (ringAround "keys" help))

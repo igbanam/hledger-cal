@@ -248,13 +248,15 @@ draw as@(AppState us _ _) = [pickerLayer | PanePicker {} <- [usPane us]] ++ [hel
           faceKeys = case layoutFor as w (availHeight c) of
             Just ly -> T.intercalate sep [ k <> " " <> l | (k, l) <- vdKeys (lyDoc ly) ]
             Nothing -> ""
-      render $ centerLayer $ borderWithLabel (txt "keys") $ hLimit (max 20 (min 100 (w - 4))) $
+      render $ centerLayer $ ringed $ borderWithLabel (txt "keys") $ hLimit (max 20 (min 100 (w - 4))) $
         padLeftRight 1 $ vBox ([txtWrap general] ++ [txtWrap faceKeys | not (T.null faceKeys)])
     pickerLayer = case usPane us of
       PanePicker f i _ ->
         let s = envSettings (usEnv us)
-        in centerLayer (blockWidget (pickerBlock (glyphsFor (sGlyphSet s)) (caretGlyph s) (pickerEntries (usEnv us)) f i))
+        in centerLayer (ringed (blockWidget (pickerBlock (glyphsFor (sGlyphSet s)) (caretGlyph s) (pickerEntries (usEnv us)) f i)))
       _ -> emptyWidget
+    -- a blank cell all round sets an overlay off from the grid under it
+    ringed = padAll 1
 
 -- | The currency picker overlay: a box titled @value in@ holding the
 -- filter prompt, the matching entries (the highlighted one in reverse
