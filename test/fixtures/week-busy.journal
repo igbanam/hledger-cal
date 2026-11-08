@@ -1,0 +1,59 @@
+; A week with one busy day (Wed 14 Oct 2026: twelve errands) for the
+; Week grid's tall day column and the viewport that follows the selection.
+commodity ₦1,000.
+D ₦1,000.
+
+account assets:bank  ; type: C
+account expenses     ; type: X
+
+2026-10-12 Bread
+    expenses:food        ₦2,000
+    assets:bank
+
+2026-10-14 Errand 1
+    expenses:errands:local   ₦1,000
+    assets:bank
+
+2026-10-14 Errand 2
+    expenses:errands:local   ₦2,000
+    assets:bank
+
+2026-10-14 Errand 3
+    expenses:errands:local   ₦3,000
+    assets:bank
+
+2026-10-14 Errand 4
+    expenses:errands:local   ₦4,000
+    assets:bank
+
+2026-10-14 Errand 5
+    expenses:errands:local   ₦5,000
+    assets:bank
+
+2026-10-14 Errand 6
+    expenses:errands:local   ₦6,000
+    assets:bank
+
+2026-10-14 Errand 7
+    expenses:errands:local   ₦7,000
+    assets:bank
+
+2026-10-14 Errand 8
+    expenses:errands:local   ₦8,000
+    assets:bank
+
+2026-10-14 Errand 9
+    expenses:errands:local   ₦9,000
+    assets:bank
+
+2026-10-14 Errand 10
+    expenses:errands:local   ₦10,000
+    assets:bank
+
+2026-10-14 Errand 11
+    expenses:errands:local   ₦11,000
+    assets:bank
+
+2026-10-14 Errand 12
+    expenses:errands:local   ₦12,000
+    assets:bank

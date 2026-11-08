@@ -286,6 +286,24 @@ unit_cursorSpan = do
   cursorSpan 3 (Just 12) (Just 15) tall @?= Just (12, 14)
   cursorSpan 30 (Just 12) (Just 15) tall @?= Just (0, 29)
 
+-- | Spec §10.5 in the Week grid: on a screen too short for a long day
+-- column, ↓ walks the selection down the day and the viewport follows it.
+unit_weekViewportFollows :: IO ()
+unit_weekViewportFollows = do
+  env <- envFor ["-W", "-p", "2026-10-14", "-f", "test/fixtures/week-busy.journal"]
+  let screen us = map (reverse . dropWhile (== ' ') . reverse)
+        (concatMap imageRows (take 1 (Vty.picLayers
+          (renderWidget (Just calAttrMap) (draw (appStateFor us t0)) (140, 45)))))
+      onScreen name us = any (\r -> (name ++ " ") `isInfixOf` r || (name ++ "│") `isInfixOf` r) (screen us)
+      s0 = (initState env) { usWidth = 140 }
+  assertBool "first errand on screen" (onScreen "Errand 1" s0)
+  assertBool "the last errand is below the viewport" (not (onScreen "Errand 12" s0))
+  let walk = scanl (\u c -> fst (step t0 c u)) s0 (replicate 11 (CmdMove 0 1))
+  mapM_ (\(i, u) -> assertBool ("Errand " ++ show i ++ " follows the selection")
+                      (onScreen ("Errand " ++ show i) u))
+        (zip [1 :: Int ..] walk)
+  assertEqual "the selection reached the last errand" 11 (cuWeekTxn (usCursor (last walk)))
+
 -- | The rows of a rendered vty image as plain text (one entry per
 -- character; the fixture's wide characters don't occur in the rows used).
 imageRows :: Image -> [String]
