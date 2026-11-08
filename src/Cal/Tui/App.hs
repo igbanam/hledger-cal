@@ -200,7 +200,7 @@ draw as@(AppState us _ _) = [helpLayer | usPane us == PaneHelp] ++ [screen]
             rest = bLines (lyRest ly)
             ScreenRows room bodyH = screenRows h (length (bLines (vdTop doc))) (length bodyLines) (length rest) (length (bLines (lyFooter ly)))
             -- the viewport follows the cursor: its row and the whole box drawn around it
-            body = vLimit bodyH $ viewport BodyViewport Vertical $ vBox $ case cursorSpan (vdCursorRow doc) bodyLines of
+            body = vLimit bodyH $ viewport BodyViewport Vertical $ vBox $ case cursorSpan bodyH (vdCursorRow doc) (vdCursorLast doc) bodyLines of
               Nothing -> map lineWidget bodyLines
               Just (lo, hi) ->
                 let (before, rest') = splitAt lo bodyLines
@@ -249,11 +249,15 @@ screenRows h topH bodyN panelN footerN = ScreenRows room bodyH
 -- | The body lines the viewport keeps in view, first and last: the cursor
 -- row and, when it holds the cursor border, the lines on either side of it
 -- that hold it too, so a cursor box (design S4) scrolls into view whole.
-cursorSpan :: Maybe Int -> [Line] -> Maybe (Int, Int)
-cursorSpan Nothing _ = Nothing
-cursorSpan (Just r) ls
-  | has r = Just (lo, hi)
-  | otherwise = Just (r, r)
+-- A box taller than the viewport (@room@ rows; a long Week day column)
+-- can't be shown whole: then the cursor row through the last row of the
+-- item under the cursor, when the view gives one, at most @room@ rows
+-- (spec §10.5: the viewport follows the cursor).
+cursorSpan :: Int -> Maybe Int -> Maybe Int -> [Line] -> Maybe (Int, Int)
+cursorSpan _ Nothing _ _ = Nothing
+cursorSpan room (Just r) itemLast ls
+  | has r && hi - lo < room = Just (lo, hi)
+  | otherwise = Just (r, max r (min (r + room - 1) (maybe r (min (length ls - 1)) itemLast)))
   where
     marked = [ any (\(Seg s _) -> stRole s == RCursorBorder) ss | Line ss <- ls ]
     has i = i >= 0 && i < length marked && marked !! i

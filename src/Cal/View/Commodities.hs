@@ -44,7 +44,7 @@ wrapWords n indent t = case T.words t of
 
 commoditiesDoc :: RenderCtx -> CommoditiesModel -> ViewDoc
 commoditiesDoc ctx m = ViewDoc
-  { vdTop = top, vdBody = body, vdCursorRow = cursorRow
+  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdCursorLast = Nothing
   , vdBottom = panels
   , vdKeys = keys, vdLegend = legend }
   where

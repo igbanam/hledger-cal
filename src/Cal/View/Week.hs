@@ -37,7 +37,7 @@ weekTitle g m =
 
 weekDoc :: RenderCtx -> WeekModel -> ViewDoc
 weekDoc ctx m = ViewDoc
-  { vdTop = top, vdBody = body, vdCursorRow = cursorRow
+  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdCursorLast = Nothing
   , vdBottom = emptyB, vdKeys = keys, vdLegend = legend }
   where
     g = rcGlyphs ctx

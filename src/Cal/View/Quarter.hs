@@ -20,7 +20,7 @@ import Cal.View.Types
 
 quarterDoc :: RenderCtx -> QuarterModel -> ViewDoc
 quarterDoc ctx m = ViewDoc
-  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdBottom = emptyB
+  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdCursorLast = Nothing, vdBottom = emptyB
   , vdKeys = keys, vdLegend = legend }
   where
     g = rcGlyphs ctx

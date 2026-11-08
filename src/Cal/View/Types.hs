@@ -38,9 +38,13 @@ mkRenderCtx env w interactive = do
     { rcSettings = s, rcFmt = mkFmt (envJournal env) (sValuation s) g, rcGlyphs = g
     , rcWidth = w, rcTier = tier, rcInteractive = interactive, rcMessage = Nothing }
 
+-- | 'vdCursorRow' is the body row the viewport follows; 'vdCursorLast',
+-- when set, is the last row of the item under the cursor, which the
+-- viewport keeps in view with it when the cursor box is too tall to show
+-- whole (Week: the selected transaction inside a long day column).
 data ViewDoc = ViewDoc
-  { vdTop :: !Block, vdBody :: !Block, vdCursorRow :: !(Maybe Int), vdBottom :: !Block
-  , vdKeys :: ![(Text, Text)], vdLegend :: !Block }
+  { vdTop :: !Block, vdBody :: !Block, vdCursorRow :: !(Maybe Int), vdCursorLast :: !(Maybe Int)
+  , vdBottom :: !Block, vdKeys :: ![(Text, Text)], vdLegend :: !Block }
 
 -- | Top, body, bottom and the legend with one blank line between; empty
 -- parts are skipped. The legend sits on the right, as in the TUI footer;

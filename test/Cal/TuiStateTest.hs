@@ -274,10 +274,17 @@ unit_cursorSpan = do
   let plainL = Doc.Line [Doc.Seg (Doc.st RText) "x"]
       boxL = Doc.Line [Doc.Seg (Doc.st RText) "x", Doc.Seg Doc.cursorBorder "│"]
       ls = [plainL, boxL, boxL, boxL, plainL, boxL]
-  cursorSpan (Just 2) ls @?= Just (1, 3)
-  cursorSpan (Just 4) ls @?= Just (4, 4)
-  cursorSpan (Just 0) [plainL] @?= Just (0, 0)
-  cursorSpan Nothing ls @?= Nothing
+  cursorSpan 40 (Just 2) Nothing ls @?= Just (1, 3)
+  cursorSpan 40 (Just 4) Nothing ls @?= Just (4, 4)
+  cursorSpan 40 (Just 0) Nothing [plainL] @?= Just (0, 0)
+  cursorSpan 40 Nothing Nothing ls @?= Nothing
+  -- a box taller than the viewport (a long Week day column): the cursor
+  -- row through the end of the selected item, at most a viewport tall
+  let tall = replicate 30 boxL
+  cursorSpan 10 (Just 12) (Just 15) tall @?= Just (12, 15)
+  cursorSpan 10 (Just 12) Nothing tall @?= Just (12, 12)
+  cursorSpan 3 (Just 12) (Just 15) tall @?= Just (12, 14)
+  cursorSpan 30 (Just 12) (Just 15) tall @?= Just (0, 29)
 
 -- | The rows of a rendered vty image as plain text (one entry per
 -- character; the fixture's wide characters don't occur in the rows used).
