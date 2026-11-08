@@ -30,7 +30,6 @@ registerPane ctx day height scroll rows = Block w (take height (bLines boxedB ++
     w = rcWidth ctx
     sep = gSep g
     n = length rows
-    ascii = sGlyphSet s == GlyphsAscii
 
     title = truncEnd g (max 0 (w - 3)) $
       "Register" <> sep <> fmtDayLong day <> sep <> T.pack (show n) <> (if n == 1 then " posting" else " postings") <> sep <> mode
@@ -85,7 +84,7 @@ registerPane ctx day height scroll rows = Block w (take height (bLines boxedB ++
          , Seg (signStyle g valT) (cellR valW valT), spaces 2
          , Seg (signStyle g runTxt) (cellR runW runTxt) ]
 
-    footerText = if ascii then "up/down scroll  Esc back" else "↑↓ scroll  Esc back"
+    footerText = gKeyUpDown g <> " scroll  Esc back"
     footerLine = [spaces 1, Seg dim footerText]
     padLines = replicate (visible - length shown) (Line [])
     body = Block inner (map (Line . rowLine) shown ++ padLines ++ [Line footerLine])

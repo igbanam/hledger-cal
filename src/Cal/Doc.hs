@@ -3,9 +3,10 @@ module Cal.Doc
   ( Style (..), st, bold, inverse, tinted
   , Seg (..), Line (..), Block (..)
   , textW, str, line, emptyB, hcat, vcat, padTo, alignR, boxed
-  , truncEnd, truncAccount, plainText, renderAnsi
+  , truncEnd, truncAccount, wrapFig, plainText, renderAnsi
   ) where
 
+import Data.Char (GeneralCategory (..), generalCategory, isAlpha, isDigit, isUpper)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Hledger.Data.AccountName (elideAccountName)
@@ -134,6 +135,44 @@ truncEnd :: Glyphs -> Int -> Text -> Text
 truncEnd g n t
   | textW t <= n = t
   | otherwise = takeW (max 0 (n - textW (gOpen g))) t <> gOpen g
+
+-- | A figure split over lines of at most @n@ columns: between amounts
+-- first (an operator stays with the amount after it, a commodity code with
+-- its number: "− KD 5.000", "− 0.01 BTC"), then after a digit-group comma;
+-- figures are wrapped, never cut. Used wherever a figure may not fit
+-- (cards and their sub-lines, month cells, week nets, hints).
+wrapFig :: Glyphs -> Int -> Text -> [Text]
+wrapFig g n t
+  | n <= 0 || textW t <= n = [t]
+  | otherwise = concatMap fit (fill " " (withCodes (glue (T.words t))))
+  where
+    -- "+" / "−" / "-" words join the word after them
+    glue (o : x : xs) | o `elem` ["+", gMinus g] = glue ((o <> " " <> x) : xs)
+    glue (x : xs) = x : glue xs
+    glue [] = []
+    withCodes (x : y : xs) | codeThenNumber x y || numberThenCode x y = withCodes ((x <> " " <> y) : xs)
+    withCodes (x : xs) = x : withCodes xs
+    withCodes [] = []
+    lastWord x = if T.null x then x else last (T.words x)
+    codeThenNumber x y =
+      let w = lastWord x
+      in not (T.null w) && T.all (\c -> isAlpha c || generalCategory c == CurrencySymbol) w
+           && maybe False (isDigit . fst) (T.uncons y)
+    numberThenCode x y = T.any isDigit (lastWord x) && T.length y >= 2 && T.all isUpper y
+    fit l
+      | textW l <= n = [l]
+      | otherwise = fill "" (concatMap hard (commaParts l))
+    commaParts x = case T.breakOn "," x of
+      (a, b) | T.null b -> [a]
+             | otherwise -> (a <> ",") : commaParts (T.drop 1 b)
+    hard tok = if textW tok > n then T.chunksOf n tok else [tok]
+    fill _ [] = []
+    fill sep (x : xs) = go x xs
+      where
+        go cur [] = [cur]
+        go cur (y : ys)
+          | textW cur + textW sep + textW y <= n = go (cur <> sep <> y) ys
+          | otherwise = cur : go y ys
 
 truncAccount :: Int -> AccountName -> Text
 truncAccount = elideAccountName

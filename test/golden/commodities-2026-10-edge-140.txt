@@ -26,4 +26,4 @@ total      2 commodities  1 unpriced                                           �
 │                                                                       │  │   trade it. Add P directives to follow the market.            │
 └───────────────────────────────────────────────────────────────────────┘  └───────────────────────────────────────────────────────────────┘
 
- ↑↓  commodity   ⏎  value in this   [ ]  period   v  rates at   /  filter account   q  quit                 share = part of total value held
+                                                                                                            share = part of total value held

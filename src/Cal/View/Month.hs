@@ -35,40 +35,13 @@ flowItems w sep (x0 : xs0) = go x0 xs0
       | segsW cur + segsW sep + segsW y <= w = go (cur ++ sep ++ y) ys
       | otherwise = cur : go y ys
 
--- | A figure split over lines of at most @n@ columns: between amounts
--- first (an operator stays with the amount after it), then after a
--- digit-group comma; figures are wrapped, never cut.
-wrapFig :: Glyphs -> Int -> Text -> [Text]
-wrapFig g n t
-  | n <= 0 || textW t <= n = [t]
-  | otherwise = concatMap fit (fill " " (glue (T.words t)))
-  where
-    -- "+" / "−" / "-" words join the word after them
-    glue (o : x : xs) | o `elem` ["+", gMinus g] = glue ((o <> " " <> x) : xs)
-    glue (x : xs) = x : glue xs
-    glue [] = []
-    fit l
-      | textW l <= n = [l]
-      | otherwise = fill "" (concatMap hard (commaParts l))
-    commaParts x = case T.breakOn "," x of
-      (a, b) | T.null b -> [a]
-             | otherwise -> (a <> ",") : commaParts (T.drop 1 b)
-    hard tok = if textW tok > n then T.chunksOf n tok else [tok]
-    fill _ [] = []
-    fill sep (x : xs) = go x xs
-      where
-        go cur [] = [cur]
-        go cur (y : ys)
-          | textW cur + textW sep + textW y <= n = go (cur <> sep <> y) ys
-          | otherwise = cur : go y ys
-
 plural :: Int -> Text -> Text -> Text
 plural n one many = T.pack (show n) <> " " <> (if n == 1 then one else many)
 
 monthDoc :: RenderCtx -> MonthModel -> ViewDoc
 monthDoc ctx m = ViewDoc
   { vdTop = top, vdBody = body, vdCursorRow = cursorRow
-  , vdBottom = vcat [panels, blankB, footerBlock ctx keys legend]
+  , vdBottom = panels
   , vdKeys = keys, vdLegend = legend }
   where
     g = rcGlyphs ctx
@@ -76,7 +49,6 @@ monthDoc ctx m = ViewDoc
     s = rcSettings ctx
     w = rcWidth ctx
     tier = rcTier ctx
-    ascii = sGlyphSet s == GlyphsAscii
     bx = gBox g
     start = spStart (mmSpan m)
     k = mmKpis m
@@ -238,7 +210,7 @@ monthDoc ctx m = ViewDoc
       where
         rws = rpRows rp
         bsym = fromMaybe (rpBase rp) (symbolOf (rpBase rp))
-        delta = if ascii then "delta" else "Δ"
+        delta = gDelta g
         heading
           | rpBase rp == sDefaultBase s = bsym <> " per 1 unit" <> gSep g <> delta <> " month"
           | otherwise = "per " <> bsym <> "1" <> gSep g <> delta <> " month"
@@ -266,7 +238,6 @@ monthDoc ctx m = ViewDoc
             ++ [spaces (deltaW - textW (deltaT r)), Seg dim (deltaT r), spaces 2, source r]
 
     -- * Footer
-    keys
-      | ascii = [("arrows", "day"), ("[ ]", "month"), ("c", "currency"), ("v", "rates at"), ("enter", "register"), ("/", "filter account"), ("q", "quit")]
-      | otherwise = [("←↑↓→", "day"), ("[ ]", "month"), ("c", "currency"), ("v", "rates at"), ("⏎", "register"), ("/", "filter account"), ("q", "quit")]
-    legend = line [Seg dim (gCursorMark g <> " day under cursor" <> gSep g <> "grey = native amount")]
+    keys = [(gKeyArrows g, "day"), ("[ ]", "month"), ("c", "currency"), ("v", "rates at"), (gKeyEnter g, "register"), ("/", "filter account"), ("q", "quit")]
+    -- the cursor note only where there is a cursor
+    legend = line [Seg dim ((if interactive then gCursorMark g <> " day under cursor" <> gSep g else "") <> "grey = native amount")]

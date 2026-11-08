@@ -20,7 +20,7 @@ import Cal.View.Year (monthRowBlocks)
 
 quarterDoc :: RenderCtx -> QuarterModel -> ViewDoc
 quarterDoc ctx m = ViewDoc
-  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdBottom = footerBlock ctx keys legend
+  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdBottom = emptyB
   , vdKeys = keys, vdLegend = legend }
   where
     g = rcGlyphs ctx
@@ -77,7 +77,7 @@ quarterDoc ctx m = ViewDoc
     -- the four figure columns of a card; widths and layout are shared by all cards
     figCols wide c =
       let k = qcKpis c
-          pct = maybe (gDash g) fmtPct (kSpent k)
+          pct = maybe (gDash g) (fmtPct f) (kSpent k)
           netLabel = str dim ("net" <> gSep g <> "spent")
           net = fmtSigned f (kNet k)
           netCol
@@ -125,7 +125,7 @@ quarterDoc ctx m = ViewDoc
         [line (l ++ [spaces (w - 4 - segsW l - segsW st1)] ++ st1)]
       (ls, sts) -> map line ls ++ map line sts
 
-    keys = [("↑↓←→", "quarter"), ("⏎", "open quarter's months"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
+    keys = [(gKeyArrows g, "quarter"), (gKeyEnter g, "open quarter's months"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
     legend = line $
       [ Seg dim "bars: ", Seg (st RInc) (gLegendBar g), Seg dim " in ", Seg (st RExp) (gLegendBar g), Seg dim " out" ]
       ++ [ Seg dim (gSep g <> "scale " <> fmtScale f sc) | Just sc <- [qmScale m] ]

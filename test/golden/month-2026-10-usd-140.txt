@@ -45,4 +45,4 @@ INCOME                     │ EXPENSES                   │ NET               
 │                                                                                         │  │ KWD      3.23  −1.7%  via NGN · 16 Oct      │
 └─────────────────────────────────────────────────────────────────────────────────────────┘  └─────────────────────────────────────────────┘
 
- ←↑↓→  day   [ ]  month   c  currency   v  rates at   ⏎  register   /  filter account   q  quit    ▢ day under cursor · grey = native amount
+                                                                                                                        grey = native amount

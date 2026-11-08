@@ -48,7 +48,8 @@ $ hledger cal -Q -p 2026 -f design.journal
 │              ████████████████████▍      2,305,000                            │
 │   Nov to 6th ██████████████████████▏    2,500,000  +2,090,000 …              │
 │              ███▋                         410,000                            │
-│   Dec        —  no postings yet  forecast Household payroll $1,200.00 ≈ −1,… │
+│   Dec        —  no postings yet                                              │
+│              forecast Household payroll $1,200.00 ≈ −1,860,000               │
 └──────────────────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────────────────┐
@@ -57,6 +58,4 @@ $ hledger cal -Q -p 2026 -f design.journal
 │ • AED rate is 84 days old                                                    │
 └──────────────────────────────────────────────────────────────────────────────┘
 
- ↑↓←→  quarter   ⏎  open quarter's months         bars: ━ in ━ out · scale ₦2.8M
- c  currency   v  rates at   /  filter account
- q  quit
+                                                  bars: ━ in ━ out · scale ₦2.8M

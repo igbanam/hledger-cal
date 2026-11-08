@@ -33,3 +33,10 @@ unit_dashApprox :: Assertion
 unit_dashApprox = do
   (gDash u, gApprox u) @?= ("\8212", "\8776")
   (gDash a, gApprox a) @?= ("-", "~")
+
+-- | Key hints and Δ come from the glyph set, ASCII-only in ASCII mode.
+unit_asciiKeyGlyphs :: Assertion
+unit_asciiKeyGlyphs = do
+  let ks g = [gKeyArrows g, gKeyUpDown g, gKeyLeftRight g, gKeyEnter g, gDelta g]
+  ks a @?= ["arrows", "up/down", "left/right", "enter", "delta"]
+  ks u @?= ["←↑↓→", "↑↓", "←→", "⏎", "Δ"]

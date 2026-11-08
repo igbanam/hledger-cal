@@ -54,6 +54,4 @@ week net −1,930,500 · in 0 · out 1,930,500
 │ KWD    5,000.00  +0.2%  P · 16 Oct            │
 └───────────────────────────────────────────────┘
 
- ←↑↓→  day   [ ]  month   c  currency   v  rates at   ⏎  register
- /  filter account   q  quit
-                                       ▢ day under cursor · grey = native amount
+                                                            grey = native amount

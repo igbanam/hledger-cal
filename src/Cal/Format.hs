@@ -85,9 +85,13 @@ joined signed f m = case ordered f m of
 fmtSigned :: Fmt -> MixedAmount -> Text
 fmtSigned = joined True
 
--- | Like 'fmtSigned' without any signs.
+-- | Like 'fmtSigned' without any signs. When the components differ in sign
+-- (a refund next to a payment) they keep their signs, so none is hidden.
 fmtAbs :: Fmt -> MixedAmount -> Text
-fmtAbs = joined False
+fmtAbs f m
+  | any (< 0) qs && any (> 0) qs = fmtSigned f m
+  | otherwise = joined False f m
+  where qs = map aquantity (components f m)
 
 -- | Every component with its symbol in its own style, joined by " + ".
 fmtNative :: Fmt -> MixedAmount -> Text
@@ -122,8 +126,15 @@ fmtRate q = grouped <> "." <> frac
 oneDecimal :: Double -> Text
 oneDecimal x = T.pack (showFFloat (Just 1) x "")
 
-fmtPct :: Double -> Text
-fmtPct x = oneDecimal (x * 100) <> "%"
+-- | One decimal, the glyph set's minus, clamped beyond ±999%:
+-- "14.0%", "−13.2%", ">999%", "<−999%".
+fmtPct :: Fmt -> Double -> Text
+fmtPct f x
+  | r > 999 = ">999%"
+  | r < -999 = "<" <> gMinus (fGlyphs f) <> "999%"
+  | r < 0 = gMinus (fGlyphs f) <> oneDecimal (abs r) <> "%"
+  | otherwise = oneDecimal r <> "%"
+  where r = fromIntegral (round (x * 1000) :: Integer) / 10 :: Double
 
 fmtDeltaPct :: Fmt -> Double -> Text
 fmtDeltaPct f x

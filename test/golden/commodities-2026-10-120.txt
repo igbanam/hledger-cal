@@ -35,5 +35,4 @@ total        8 commodities  0 unpriced  1 stale price                           
 │ • AED has no price since 14 Aug, so a 78-day-old rate is used.                                                       │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
- ↑↓  commodity   ⏎  value in this   [ ]  period   v  rates at   /  filter account       share = part of total value held
- q  quit
+                                                                                        share = part of total value held

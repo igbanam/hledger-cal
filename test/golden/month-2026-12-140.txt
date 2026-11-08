@@ -38,4 +38,4 @@ INCOME                     │ EXPENSES                   │ NET               
 │                                                                                             │  │ AED •  422.00  —  stale · 14 Aug (84 d) │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘  └─────────────────────────────────────────┘
 
- ←↑↓→  day   [ ]  month   c  currency   v  rates at   ⏎  register   /  filter account   q  quit    ▢ day under cursor · grey = native amount
+                                                                                                                        grey = native amount

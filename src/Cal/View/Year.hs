@@ -44,7 +44,7 @@ yearOf d = let (y, _, _) = toGregorian d in y
 
 yearDoc :: RenderCtx -> YearModel -> ViewDoc
 yearDoc ctx m = ViewDoc
-  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdBottom = footerBlock ctx keys legend
+  { vdTop = top, vdBody = body, vdCursorRow = cursorRow, vdBottom = emptyB
   , vdKeys = keys, vdLegend = legend }
   where
     g = rcGlyphs ctx
@@ -54,7 +54,7 @@ yearDoc ctx m = ViewDoc
     k = ymKpis m
     title = T.pack (show (yearOf (spStart (ymSpan m))))
     withAvg w t b = case splitAt 2 (bLines b) of
-      (hd, tl) -> Block (bWidth b) (hd ++ bLines (str dim (truncEnd g w t)) ++ tl)
+      (hd, tl) -> Block (bWidth b) (hd ++ bLines (sub ctx w t) ++ tl)
     cards = cardRow ctx
       [ \cw -> maybe id (\a -> withAvg cw ("avg " <> fmtAbs f a <> " / month")) (ymAvgIncome m) (incomeCard ctx cw "" k)
       , \cw -> maybe id (\a -> withAvg cw ("avg " <> fmtAbs f a <> " / full month")) (ymAvgExpenseFull m) (expensesCard ctx cw "" k)
@@ -98,9 +98,9 @@ yearDoc ctx m = ViewDoc
       , Seg (bold plain) (fmtSigned f (qgNet q)), Seg plain "  " ] ++
       case qgStatus q of
         Open -> [Seg dim ("open" <> gSep g <> "to " <> fmtDayMon today)]
-        _ -> [Seg dim (maybe (gDash g) fmtPct (qgSpent q) <> " spent")]
+        _ -> [Seg dim (maybe (gDash g) (fmtPct f) (qgSpent q) <> " spent")]
 
-    keys = [("↑↓←→", "month"), ("⏎", "open month"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
+    keys = [(gKeyArrows g, "month"), (gKeyEnter g, "open month"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
     legend = line $
       [ Seg dim "bars: ", Seg (st RInc) (gLegendBar g), Seg dim " in ", Seg (st RExp) (gLegendBar g), Seg dim " out" ]
       ++ [ Seg dim (gSep g <> "scale " <> fmtScale f sc) | Just sc <- [ymScale m] ]
@@ -156,11 +156,27 @@ monthRowBlocks ctx w showSyms0 bwFor cursor sizing rows = [ (isCursorRow r, rowB
       [spaces (2 + nameW + symW)] ++ barSegs RExp (mrOutFrac r)
       ++ [spaces 2, fig figW plain (fmtAbs f (mrExpenses r))]
     noPostings = gDash g <> "  no postings yet"
-    futureRow r = line $
-      [spaces 2] ++ nameSegs r ++ symSegs r
-      ++ [Seg dim noPostings]
-      ++ maybe [] (\h -> [Seg dim ("  " <> truncEnd g room (hintText h))]) (mrHint r)
-      where room = w - (2 + nameW + symW + textW noPostings + 2)
-    hintText h = "forecast " <> fhDescription h <> " " <> fmtNative f (fhNative h)
+    lead = 2 + nameW + symW
+    -- the hint follows on the same line when it fits whole, else on its own
+    -- line beneath, where the description shrinks first
+    futureRow r = vcat $
+      line ([spaces 2] ++ nameSegs r ++ symSegs r ++ [Seg dim noPostings] ++ [ Seg dim ("  " <> t) | Just t <- [sameLine] ])
+        : [ line [spaces lead, Seg dim t] | Nothing <- [sameLine], Just h <- [mrHint r], t <- hintLines (w - lead) h ]
+      where
+        room = w - (lead + textW noPostings + 2)
+        sameLine = case mrHint r of
+          Just h | textW (hintText h) <= room -> Just (hintText h)
+          _ -> Nothing
+    -- the figures: the native total, then its valued total; kept whole
+    hintFigs h = fmtNative f (fhNative h)
       <> maybe "" (\v -> (" " <> gApprox g <> " ") <> fmtQty f (negate v)) (fhValued h)
       <> (if fhMore h > 0 then " +" <> T.pack (show (fhMore h)) else "")
+    hintText h = "forecast " <> fhDescription h <> " " <> hintFigs h
+    hintLines n h
+      | textW (hintText h) <= n = [hintText h]
+      | descRoom >= 2 = ["forecast " <> truncEnd g descRoom (fhDescription h) <> " " <> hintFigs h]
+      | textW short <= n = [short]
+      | otherwise = wrapFig g n (hintFigs h)
+      where
+        descRoom = n - textW "forecast " - 1 - textW (hintFigs h)
+        short = "forecast " <> hintFigs h

@@ -8,7 +8,7 @@ $ hledger cal -M -p 2026-08 -f design.journal
 
 INCOME                     │ EXPENSES                   │ NET                        │ FX EFFECT                 │ ACTIVITY
 +2,500,000                 │ −2,829,000                 │ −329,000                   │ 0                         │ 5 txns
-0 vs Jul                   │ +717,000 vs Jul (+33.9%)   │ -13.2% of income kept      │ period-end vs txn-date    │ 3 currencies used
+0 vs Jul                   │ +717,000 vs Jul (+33.9%)   │ −13.2% of income kept      │ period-end vs txn-date    │ 3 currencies used
 ██████████████████████████ │ ██████████████████████████ │                            │ rates                     │
 ₦ 100.0%                   │ $ 64.3% · ₦ 28.3%          │                            │                           │
                            │ Dh 7.5%                    │                            │                           │
@@ -49,4 +49,4 @@ INCOME                     │ EXPENSES                   │ NET               
 │                                                                                       │  │ KWD •  4,800.00      —  stale · 1 Jan (242 d) │
 └───────────────────────────────────────────────────────────────────────────────────────┘  └───────────────────────────────────────────────┘
 
- ←↑↓→  day   [ ]  month   c  currency   v  rates at   ⏎  register   /  filter account   q  quit    ▢ day under cursor · grey = native amount
+                                                                                                                        grey = native amount

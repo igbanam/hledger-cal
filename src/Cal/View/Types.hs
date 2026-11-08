@@ -7,7 +7,7 @@ module Cal.View.Types
 
 import Data.Text (Text)
 
-import Cal.Doc (Block (..), Line (..), vcat)
+import Cal.Doc (Block (..), Line (..), alignR, vcat)
 import Cal.Format (Fmt, mkFmt)
 import Cal.Glyphs (Glyphs, glyphsFor)
 import Cal.Model.Common (Env (..))
@@ -42,10 +42,14 @@ data ViewDoc = ViewDoc
   { vdTop :: !Block, vdBody :: !Block, vdCursorRow :: !(Maybe Int), vdBottom :: !Block
   , vdKeys :: ![(Text, Text)], vdLegend :: !Block }
 
--- | Top, body and bottom with one blank line between; empty parts are skipped.
-printBlock :: ViewDoc -> Block
-printBlock d = vcat (sepBlank (filter (not . null . bLines) [vdTop d, vdBody d, vdBottom d]))
+-- | Top, body, bottom and the legend with one blank line between; empty
+-- parts are skipped. The legend sits on the right, as in the TUI footer;
+-- static output has no key hints (spec §8).
+printBlock :: RenderCtx -> ViewDoc -> Block
+printBlock ctx d = vcat (sepBlank (filter (not . null . bLines) [vdTop d, vdBody d, vdBottom d, legend]))
   where
+    lg = vdLegend d
+    legend = if bWidth lg <= rcWidth ctx then alignR (rcWidth ctx) lg else lg
     blank = Block 0 [Line []]
     sepBlank [] = []
     sepBlank [x] = [x]

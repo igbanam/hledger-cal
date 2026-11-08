@@ -34,6 +34,7 @@ import Cal.Model.Register (RegisterRow, registerRows)
 import Cal.Period (faceSpan)
 import Cal.Theme (RGB, Role (..), backgroundRGB, roleRGB, tintRGB)
 import Cal.Tui.State
+import Cal.Glyphs (Glyphs (..), glyphsFor)
 import Cal.Types (ColorMode (..), GlyphSet (..), Settings (..))
 import Cal.View (faceDoc)
 import Cal.View.Chrome (footerBlock)
@@ -44,8 +45,14 @@ data Name = BodyViewport deriving (Eq, Ord, Show)
 
 data Tick = Tick
 
--- | The UI state and the time of the latest event (for message expiry).
-data AppState = AppState !UiState !UTCTime
+-- | The UI state, the time of the latest event (for message expiry) and the
+-- layout for the latest screen size. The layout is rebuilt only when the
+-- state, the size or the visible message changes, and is shared by the
+-- screen and the help overlay.
+data AppState = AppState !UiState !UTCTime !(Maybe Cache)
+
+-- | A layout and the screen size it was made for (lazy: built on first use).
+data Cache = Cache !(Int, Int) (Maybe Layout)
 
 -- * Attributes
 
@@ -108,17 +115,14 @@ blankLine :: Block
 blankLine = Block 0 [Line []]
 
 -- | Everything the screen needs at a terminal size; Nothing below 80 columns.
+-- Views leave the key-hint footer to us.
 layout :: UTCTime -> UiState -> Int -> Int -> Maybe Layout
 layout now us w h = do
   ctx0 <- mkRenderCtx env w True
   let ctx = ctx0 { rcMessage = visibleMessage now us }
       doc = faceDoc ctx env (usCursor us)
       keysFooter = footerBlock ctx (vdKeys doc) (vdLegend doc)
-      -- Every view ends its bottom block with the footer; drop it, we draw our own.
-      bl = bLines (vdBottom doc)
-      fl = bLines keysFooter
-      cut = length bl - length fl
-      rest = if cut >= 0 && drop cut bl == fl then (vdBottom doc) { bLines = take cut bl } else vdBottom doc
+      rest = vdBottom doc
       footer = case usPane us of
         PaneFilter draft _ -> line [Seg (st RDim) "/ ", Seg (st RText) draft, Seg (st RCursor) cursorGlyph]
         _ -> keysFooter
@@ -141,13 +145,19 @@ clampScroll ly us = case usPane us of
 clampRegisterScroll :: Int -> Int -> Int -> Int
 clampRegisterScroll height n i = max 0 (min (max 0 (n - registerVisibleRows height)) i)
 
+-- | The cached layout when it was made for this size, else a fresh one.
+layoutFor :: AppState -> Int -> Int -> Maybe Layout
+layoutFor (AppState us now cache) w h = case cache of
+  Just (Cache size ly) | size == (w, h) -> ly
+  _ -> layout now us w h
+
 draw :: AppState -> [Widget Name]
-draw (AppState us now) = [helpLayer | usPane us == PaneHelp] ++ [screen]
+draw as@(AppState us _ _) = [helpLayer | usPane us == PaneHelp] ++ [screen]
   where
     screen = Widget Greedy Greedy $ do
       c <- getContext
       render (screenAt (availWidth c) (availHeight c))
-    screenAt w h = case layout now us w h of
+    screenAt w h = case layoutFor as w h of
       Nothing -> txt ("hledger cal needs at least 80 columns (have " <> T.pack (show w) <> ")")
       Just ly ->
         let doc = lyDoc ly
@@ -158,19 +168,20 @@ draw (AppState us now) = [helpLayer | usPane us == PaneHelp] ++ [screen]
             middle = case usPane us of
               PaneRegister scroll ->
                 [ blockWidget (registerPane ctx (sFocus (rcSettings ctx)) (lyRegHeight ly) scroll (lyRegRows ly)) ]
-              _ -> [body, blockWidget blankLine] ++ [blockWidget (lyRest ly) | not (null (bLines (lyRest ly)))]
+              _ -> [body, blockWidget blankLine]
+                ++ concat [ [blockWidget (lyRest ly), blockWidget blankLine] | not (null (bLines (lyRest ly))) ]
         in vBox ([blockWidget (vdTop doc), blockWidget blankLine] ++ middle ++ [blockWidget (lyFooter ly)])
     helpLayer = Widget Fixed Fixed $ do
       c <- getContext
       let w = availWidth c
           s = envSettings (usEnv us)
-          ascii = sGlyphSet s == GlyphsAscii
-          sep = if ascii then " . " else " · "
-          enter = if ascii then "Enter" else "⏎"
+          gl = glyphsFor (sGlyphSet s)
+          sep = gSep gl
+          enter = gKeyEnter gl
           general = T.intercalate sep
             [ "Y Q M W C view", "Tab next view", "[ ] period", "c currency", "v rates at"
             , "/ filter", enter <> " open", "Esc back", "g reload", "? help", "q quit" ]
-          faceKeys = case layout now us w (availHeight c) of
+          faceKeys = case layoutFor as w (availHeight c) of
             Just ly -> T.intercalate sep [ k <> " " <> l | (k, l) <- vdKeys (lyDoc ly) ]
             Nothing -> ""
       render $ centerLayer $ borderWithLabel (txt "keys") $ hLimit (max 20 (min 100 (w - 4))) $
@@ -183,11 +194,13 @@ displaySize = do
   vty <- getVtyHandle
   liftIO (Vty.displayBounds (Vty.outputIface vty))
 
--- | Clamp the register scroll to the current screen.
+-- | Store a new state with its layout, clamping the register scroll to the
+-- screen (the scroll offset doesn't change the layout).
 settle :: UTCTime -> UiState -> EventM Name AppState ()
 settle now us = do
   (w, h) <- displaySize
-  put (AppState (maybe us (`clampScroll` us) (layout now us w h)) now)
+  let ly = layout now us w h
+  put (AppState (maybe us (`clampScroll` us) ly) now (Just (Cache (w, h) ly)))
 
 -- | Reload; synchronous exceptions become an error message, async ones are rethrown.
 reloadJournal :: InputOpts -> [FilePath] -> IO (Either String Journal)
@@ -201,12 +214,15 @@ reloadJournal opts files = do
 handleEvent :: InputOpts -> [FilePath] -> BrickEvent Name Tick -> EventM Name AppState ()
 handleEvent opts files ev = do
   now <- liftIO getCurrentTime
-  AppState us _ <- get
+  AppState us before _ <- get
   case ev of
-    AppEvent Tick -> put (AppState us now)
+    -- redraw only when a message has just expired
+    AppEvent Tick
+      | visibleMessage now us /= visibleMessage before us -> settle now us
+      | otherwise -> continueWithoutRedraw
     VtyEvent (Vty.EvKey (Vty.KChar 'c') [Vty.MCtrl]) -> halt
     VtyEvent (Vty.EvKey k mods) -> case keyCmd (usPane us) k mods of
-      Nothing -> put (AppState us now)
+      Nothing -> continueWithoutRedraw
       Just cmd -> case step now cmd us of
         (_, EffQuit) -> halt
         (us', EffReload) -> do
@@ -214,14 +230,14 @@ handleEvent opts files ev = do
           settle now (applyReload now r us')
         (us', EffNone) -> settle now us'
     VtyEvent (Vty.EvResize _ _) -> settle now us
-    _ -> pure ()
+    _ -> continueWithoutRedraw
 
 app :: InputOpts -> [FilePath] -> ColorMode -> App AppState Tick Name
 app opts files cm = App
   { appDraw = draw
   , appChooseCursor = neverShowCursor
   , appHandleEvent = handleEvent opts files
-  , appStartEvent = pure ()
+  , appStartEvent = get >>= \(AppState us now _) -> settle now us
   , appAttrMap = const (attrMapFor cm)
   }
 
@@ -234,4 +250,4 @@ runTui opts files env = do
   now <- getCurrentTime
   let build = mkVty Vty.defaultConfig
   vty <- build
-  void $ customMain vty build (Just chan) (app opts files (sColor (envSettings env))) (AppState (initState env) now)
+  void $ customMain vty build (Just chan) (app opts files (sColor (envSettings env))) (AppState (initState env) now Nothing)

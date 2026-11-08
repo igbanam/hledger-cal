@@ -19,7 +19,7 @@ quarterRender :: [String] -> Int -> IO Block
 quarterRender extra w = do
   env <- envFor extra
   let ctx = fromJust (mkRenderCtx env w False)
-  pure (printBlock (quarterDoc ctx (quarterModel env)))
+  pure (printBlock ctx (quarterDoc ctx (quarterModel env)))
 
 variants :: [(String, [String], Int)]
 variants = [ ("quarter-2026-" ++ show w, ["-Q"], w) | w <- [140, 120, 100, 80] ]

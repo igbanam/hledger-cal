@@ -45,7 +45,7 @@ wrapWords n indent t = case T.words t of
 commoditiesDoc :: RenderCtx -> CommoditiesModel -> ViewDoc
 commoditiesDoc ctx m = ViewDoc
   { vdTop = top, vdBody = body, vdCursorRow = cursorRow
-  , vdBottom = vcat [panels, blankB, footerBlock ctx keys legend]
+  , vdBottom = panels
   , vdKeys = keys, vdLegend = legend }
   where
     g = rcGlyphs ctx
@@ -53,7 +53,6 @@ commoditiesDoc ctx m = ViewDoc
     s = rcSettings ctx
     w = rcWidth ctx
     tier = rcTier ctx
-    ascii = sGlyphSet s == GlyphsAscii
     interactive = rcInteractive ctx
     valued = isJust (fBase f)
     dash = gDash g
@@ -80,7 +79,7 @@ commoditiesDoc ctx m = ViewDoc
       IQuarter -> ("this quarter", "qtr")
       IMonth -> ("this month", "mo")
       IWeek -> ("this week", "wk")
-    deltaHead = (if ascii then "delta " else "Δ ") <> deltaWord
+    deltaHead = gDelta g <> " " <> deltaWord
     rows = cmCurrencies m ++ cmSecurities m
     isSecurity c = c `elem` map crCommodity (cmSecurities m)
     selected = drop (cmSelected m) rows
@@ -121,7 +120,7 @@ commoditiesDoc ctx m = ViewDoc
       Just q | valued -> one (valueT q)
       _ -> dimD
     shareCell r = case crShare r of
-      Just x | valued -> [Seg dim (fmtPct x)]
+      Just x | valued -> [Seg dim (fmtPct f x)]
       _ -> dimD
     gainCell r = case crGain r of
       Just q | priced r -> let t = fmtQty f q in [Seg (signStyle g t) t]
@@ -290,7 +289,5 @@ commoditiesDoc ctx m = ViewDoc
           | r <- cmCurrencies m, Just n <- [crStale r], Just i <- [crPrice r] ]
 
     -- * Footer
-    keys
-      | ascii = [("up/down", "commodity"), ("enter", "value in this"), ("[ ]", "period"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
-      | otherwise = [("↑↓", "commodity"), ("⏎", "value in this"), ("[ ]", "period"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
+    keys = [(gKeyUpDown g, "commodity"), (gKeyEnter g, "value in this"), ("[ ]", "period"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
     legend = line [Seg dim "share = part of total value held"]

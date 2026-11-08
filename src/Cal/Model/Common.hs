@@ -130,7 +130,8 @@ summarize env vs = Kpis
           total = sum (M.elems m)
       if total == 0
         then Nothing
-        else Just (Mix (sortBy (comparing (Down . snd)) [(c, realToFrac (x / total)) | (c, x) <- M.toList m]))
+        -- unpriced commodities have no share: leave them out of the legend
+        else Just (Mix (sortBy (comparing (Down . snd)) [(c, realToFrac (x / total)) | (c, x) <- M.toList m, x /= 0]))
     fxs b = [(c, group2 (paccount (vpPosting v)), fxEffect b v) | v <- vs, Just c <- [nativeOf v]]
     fxTotal = (\b -> sum [x | (_, _, x) <- fxs b]) <$> base
     cause = do

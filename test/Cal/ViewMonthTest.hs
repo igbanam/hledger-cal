@@ -20,7 +20,7 @@ monthRender :: [String] -> Int -> IO Block
 monthRender args w = do
   env <- envFor args
   let ctx = fromJust (mkRenderCtx env w False)
-  pure (printBlock (monthDoc ctx (monthModel env)))
+  pure (printBlock ctx (monthDoc ctx (monthModel env)))
 
 oct :: [String]
 oct = ["-M", "-p", "2026-10"]
@@ -93,7 +93,15 @@ unit_checks = do
   assertBool "rates title" ("Rates · 31 Oct" `T.isInfixOf` t)
   assertBool "rates heading" ("₦ per 1 unit · Δ month" `T.isInfixOf` t)
   assertBool "stale AED" (hasLine t ["AED •", "stale · 14 Aug"])
-  assertBool "legend" ("▢ day under cursor · grey = native amount" `T.isInfixOf` t)
+  -- print: the legend without the cursor note, and no key hints (spec §8)
+  assertBool "legend" ("grey = native amount" `T.isInfixOf` t)
+  assertBool "no cursor note" (not ("day under cursor" `T.isInfixOf` t))
+  assertBool "no key hints" (not ("filter account" `T.isInfixOf` t))
+  env <- envFor oct
+  let ictx = fromJust (mkRenderCtx env 140 True)
+      idoc = monthDoc ictx (monthModel env)
+  assertBool "interactive legend" ("▢ day under cursor · grey = native amount" `T.isInfixOf` plainText (vdLegend idoc))
+  assertBool "interactive bottom has no footer" (not ("filter account" `T.isInfixOf` plainText (vdBottom idoc)))
 
 unit_usd :: Assertion
 unit_usd = do
@@ -110,7 +118,7 @@ unit_switchedHeading = do
   env <- envFor (oct ++ ["-X", "$"])
   let ctx0 = fromJust (mkRenderCtx env 140 False)
       ctx = ctx0 { rcSettings = (rcSettings ctx0) { sDefaultBase = "₦" } }
-      t = plainText (printBlock (monthDoc ctx (monthModel env)))
+      t = plainText (printBlock ctx (monthDoc ctx (monthModel env)))
   assertBool "per $1" ("per $1 · Δ month" `T.isInfixOf` t)
 
 unit_tier80WeekRow :: Assertion

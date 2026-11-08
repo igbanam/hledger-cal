@@ -51,5 +51,4 @@ INCOME             │ EXPENSES           │ NET                │ FX EFFECT  
 │ KWD    5,000.00  +0.2%  P · 16 Oct            │
 └───────────────────────────────────────────────┘
 
- ←↑↓→  day   [ ]  month   c  currency   v  rates at        ▢ day under cursor · grey = native amount
- ⏎  register   /  filter account   q  quit
+                                                                                grey = native amount

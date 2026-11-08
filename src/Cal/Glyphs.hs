@@ -21,6 +21,7 @@ data Glyphs = Glyphs
   , gChartPoint :: !(Maybe Char)
   , gLeft, gRight, gOverspent, gStale, gOpen, gSep, gMinus, gLegendBar
   , gCursorMark, gArrow, gTimes, gDash, gApprox :: !Text
+  , gKeyArrows, gKeyUpDown, gKeyLeftRight, gKeyEnter, gDelta :: !Text  -- ^ key hints, Δ
   , gMixRank :: ![Char], gBox :: !BoxChars }
   deriving (Eq, Show)
 
@@ -31,6 +32,7 @@ glyphsFor GlyphsUtf8 = Glyphs
   , gLeft = "◀", gRight = "▶", gOverspent = "▲", gStale = "•", gOpen = "…"
   , gSep = " · ", gMinus = "−", gLegendBar = "━", gCursorMark = "▢"
   , gArrow = "→", gTimes = "×", gDash = "—", gApprox = "≈"
+  , gKeyArrows = "←↑↓→", gKeyUpDown = "↑↓", gKeyLeftRight = "←→", gKeyEnter = "⏎", gDelta = "Δ"
   , gMixRank = "████"
   , gBox = BoxChars '─' '│' '┌' '┐' '└' '┘' '├' '┤' '┬' '┴' '┼' }
 glyphsFor GlyphsAscii = Glyphs
@@ -39,6 +41,7 @@ glyphsFor GlyphsAscii = Glyphs
   , gLeft = "<", gRight = ">", gOverspent = "^", gStale = "*", gOpen = "..."
   , gSep = " . ", gMinus = "-", gLegendBar = "-", gCursorMark = "[]"
   , gArrow = "->", gTimes = "x", gDash = "-", gApprox = "~"
+  , gKeyArrows = "arrows", gKeyUpDown = "up/down", gKeyLeftRight = "left/right", gKeyEnter = "enter", gDelta = "delta"
   , gMixRank = "#=-."
   , gBox = BoxChars '-' '|' '+' '+' '+' '+' '+' '+' '+' '+' '+' }
 

@@ -38,12 +38,11 @@ weekTitle g m =
 weekDoc :: RenderCtx -> WeekModel -> ViewDoc
 weekDoc ctx m = ViewDoc
   { vdTop = top, vdBody = body, vdCursorRow = cursorRow
-  , vdBottom = footerBlock ctx keys legend, vdKeys = keys, vdLegend = legend }
+  , vdBottom = emptyB, vdKeys = keys, vdLegend = legend }
   where
     g = rcGlyphs ctx
     f = rcFmt ctx
     w = rcWidth ctx
-    ascii = sGlyphSet (rcSettings ctx) == GlyphsAscii
     interactive = rcInteractive ctx
     k = wkKpis m
     days = wkDays m
@@ -130,7 +129,5 @@ weekDoc ctx m = ViewDoc
       | otherwise = Nothing
 
     -- * Footer
-    keys
-      | ascii = [("arrows", "day"), ("up/down", "transaction"), ("[ ]", "week"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
-      | otherwise = [("←→", "day"), ("↑↓", "transaction"), ("[ ]", "week"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
+    keys = [(gKeyLeftRight g, "day"), (gKeyUpDown g, "transaction"), ("[ ]", "week"), ("c", "currency"), ("v", "rates at"), ("/", "filter account"), ("q", "quit")]
     legend = line [Seg dim ("bar = day's spend" <> gSep g <> "grey = native amount @ rate")]

@@ -28,7 +28,7 @@ render args cur w interactive = do
   env <- envFor args
   let ctx = fromJust (mkRenderCtx env w interactive)
       d = commoditiesDoc ctx (commoditiesModel env cur)
-  pure (d, printBlock d)
+  pure (d, printBlock ctx d)
 
 variants :: [(String, [String], Cursor, Int)]
 variants =
@@ -86,7 +86,7 @@ unit_checks = do
     , "· A security priced only by inference moves only when you trade it. Add P directives to follow the market." ]
   assertBool "stale note" ("• AED has no price since 14 Aug, so a 78-day-old rate is used." `T.isInfixOf` unwrapped t)
   assertBool "legend" ("share = part of total value held" `T.isInfixOf` t)
-  assertBool "keys" ("value in this" `T.isInfixOf` t)
+  assertBool "no key hints in print" (not ("value in this" `T.isInfixOf` t))
   t120 <- plainText . snd <$> render oct defaultCursor 120 False
   assertBool "no source at 120" (not ("price source" `T.isInfixOf` t120) && hasLine t120 ["12 months", "unreal. gain"])
   t80 <- plainText . snd <$> render oct defaultCursor 80 False

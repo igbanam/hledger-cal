@@ -45,5 +45,4 @@ INCOME                     | EXPENSES                   | NET                   
 |                                                                                       |  | KWD    5,000.00  +0.2%  P . 16 Oct            |
 +---------------------------------------------------------------------------------------+  +-----------------------------------------------+
 
- arrows  day   [ ]  month   c  currency   v  rates at   enter  register   /  filter account       [] day under cursor . grey = native amount
- q  quit
+                                                                                                                        grey = native amount

@@ -13,4 +13,4 @@ import qualified Data.Text as T
 renderPrint :: Env -> Int -> Either Text Text
 renderPrint env w = case mkRenderCtx env w False of
   Nothing -> Left ("hledger cal needs at least 80 columns (have " <> T.pack (show w) <> ")")
-  Just ctx -> Right (renderAnsi (sColor (envSettings env)) (printBlock (faceDoc ctx env defaultCursor)))
+  Just ctx -> Right (renderAnsi (sColor (envSettings env)) (printBlock ctx (faceDoc ctx env defaultCursor)))

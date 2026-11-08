@@ -1,10 +1,12 @@
 module Cal.PrintTest where
 
-import Control.Monad (forM_, unless)
+import Control.Monad (forM, forM_, unless)
+import Data.Char (GeneralCategory (..), generalCategory, isDigit)
+import Data.List (isSuffixOf)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString as BS
-import System.Directory (doesFileExist, findExecutable, getHomeDirectory)
+import System.Directory (doesFileExist, findExecutable, getHomeDirectory, listDirectory)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode (..))
 import System.Process (readProcess, readProcessWithExitCode)
@@ -72,3 +74,19 @@ unit_mainBadJournal = do
   (code, _, err) <- readProcessWithExitCode bin ["-f", "test/fixtures/nope.journal", "--print"] ""
   code @?= ExitFailure 1
   assertBool "stderr non-empty" (not (null err))
+
+-- | No golden may show a cut figure: an ellipsis straight after a digit, a
+-- digit-group comma or a currency symbol.
+unit_goldensHaveNoCutFigures :: Assertion
+unit_goldensHaveNoCutFigures = do
+  files <- filter (".txt" `isSuffixOf`) <$> listDirectory "test/golden"
+  assertBool "goldens found" (not (null files))
+  found <- fmap concat $ forM files $ \name -> do
+    t <- TE.decodeUtf8 <$> BS.readFile ("test/golden/" ++ name)
+    pure [ name ++ ":" ++ show i ++ ": figure cut after " ++ T.unpack c
+         | (i, l) <- zip [1 :: Int ..] (T.lines t), c <- cutsIn l ]
+  unless (null found) (assertFailure (unlines found))
+  where
+    cutsIn l = [ T.takeEnd 12 before | ell <- ["…", "..."], (before, _) <- T.breakOnAll ell l
+                                     , Just (_, c) <- [T.unsnoc before], isFigureChar c ]
+    isFigureChar c = isDigit c || c == ',' || generalCategory c == CurrencySymbol

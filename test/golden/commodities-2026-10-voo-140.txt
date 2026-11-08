@@ -36,4 +36,4 @@ total        8 commodities  0 unpriced                                          
 │ share price in $ +16.7%  × $ → ₦ +4.7%  = in ₦ +22.2%                 │  │                                                               │
 └───────────────────────────────────────────────────────────────────────┘  └───────────────────────────────────────────────────────────────┘
 
- ↑↓  commodity   ⏎  value in this   [ ]  period   v  rates at   /  filter account   q  quit                 share = part of total value held
+                                                                                                            share = part of total value held

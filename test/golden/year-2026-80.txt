@@ -9,7 +9,8 @@ $ hledger cal -Y -p 2026 -f design.journal
 
 INCOME                    │ EXPENSES                  │ NET
 +27,680,000               │ −22,866,000               │ +4,814,000
-avg 2,516,364 / month     │ avg 2,191,600 / full mon… │ 17.4% of income kept
+avg 2,516,364 / month     │ avg 2,191,600 / full      │ 17.4% of income kept
+                          │ month                     │
 
 FX EFFECT                               │ MONTHS
 −552,000                                │ 10 + 1 open
@@ -45,8 +46,7 @@ Q4  +2,465,000  open · to 6 Nov
              █████████████████████▏      2,305,000
   Nov to 6th ███████████████████████     2,500,000  +2,090,000 …
              ███▊                          410,000
-  Dec        —  no postings yet  forecast Household payroll $1,200.00 ≈ −1,860,…
+  Dec        —  no postings yet
+             forecast Household payroll $1,200.00 ≈ −1,860,000
 
- ↑↓←→  month   ⏎  open month   c  currency   v  rates at   /  filter account
- q  quit
                       bars: ━ in ━ out · scale ₦2.8M · symbols = currencies used

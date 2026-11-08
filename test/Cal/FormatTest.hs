@@ -39,7 +39,7 @@ unit_abs = fmtU >>= \f -> fmtAbs f (ngn (-2305000)) @?= "2,305,000"
 
 unit_rate, unit_pct, unit_delta, unit_dates, unit_scale, unit_asciiMinus :: Assertion
 unit_rate = map fmtRate [1550, 17.5, 0.86111] @?= ["1,550.00", "17.50", "0.8611"]
-unit_pct = fmtPct 0.13993 @?= "14.0%"
+unit_pct = fmtU >>= \f -> fmtPct f 0.13993 @?= "14.0%"
 unit_delta = fmtU >>= \f -> (fmtDeltaPct f 0.0197, fmtDeltaPct f (-0.004)) @?= ("+2.0%", "−0.4%")
 unit_dates =
   (fmtDayMon (fromGregorian 2026 10 31), fmtDayLong (fromGregorian 2026 10 30), fmtMonthYear (fromGregorian 2026 10 1))
@@ -63,3 +63,22 @@ unit_nativeSigned = do
 unit_sumsBase = fmtU >>= \f ->
   fmtSigned f (ngn 100 <> mixedAmount nullamt { acommodity = "₦", aquantity = 50, acost = Just (UnitCost nullamt { acommodity = "$", aquantity = 2 }) } <> btc 0.01)
     @?= "+150 + 0.01 BTC"
+
+unit_pctNegative :: Assertion
+unit_pctNegative = do
+  u <- fmtU
+  a <- fmtWith GlyphsAscii
+  (fmtPct u (-0.132), fmtPct a (-0.132), fmtPct u (-0.00001)) @?= ("\x2212\&13.2%", "-13.2%", "0.0%")
+
+unit_pctClamped :: Assertion
+unit_pctClamped = do
+  u <- fmtU
+  a <- fmtWith GlyphsAscii
+  map (fmtPct u) [9.99, 9.991, 123455.784, -9.99, -123455.784] ++ [fmtPct a (-50)]
+    @?= ["999.0%", ">999%", ">999%", "\x2212\&999.0%", "<\x2212\&999%", "<-999%"]
+
+unit_absMixedSigns :: Assertion
+unit_absMixedSigns = do
+  f <- fmtU
+  (fmtAbs f (ngn (-5000) <> btc 0.01), fmtAbs f (ngn (-5000) <> btc (-0.01)))
+    @?= ("\x2212\&5,000 + 0.01 BTC", "5,000 + 0.01 BTC")

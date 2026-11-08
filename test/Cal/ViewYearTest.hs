@@ -1,6 +1,8 @@
 module Cal.ViewYearTest where
 
+import Control.Monad (forM_)
 import qualified Data.ByteString.Lazy as BL
+import Data.Char (isAscii)
 import Data.Maybe (fromJust)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -11,6 +13,8 @@ import Test.Tasty.HUnit
 
 import Cal.Doc
 import Cal.Model.Year (yearModel)
+import Cal.Types (defaultCursor)
+import Cal.View (faceDoc)
 import Cal.View.Types
 import Cal.View.Year (yearDoc)
 import Support (envFor)
@@ -19,7 +23,7 @@ yearRender :: [String] -> Int -> IO Block
 yearRender extra w = do
   env <- envFor extra
   let ctx = fromJust (mkRenderCtx env w False)
-  pure (printBlock (yearDoc ctx (yearModel env)))
+  pure (printBlock ctx (yearDoc ctx (yearModel env)))
 
 variants :: [(String, [String], Int)]
 variants =
@@ -58,3 +62,12 @@ unit_checks = do
   t <- plainText <$> yearRender ["-Y"] 140
   assertBool "Aug overspent" (any (\l -> "Aug" `T.isInfixOf` l && "▲" `T.isInfixOf` l) (T.lines t))
   assertBool "Dec forecast" ("forecast Household payroll $1,200.00 ≈ −1,860,000" `T.isInfixOf` t)
+
+-- | Every view's key hints are ASCII in ASCII mode.
+unit_asciiKeys :: Assertion
+unit_asciiKeys = forM_ [["-Y"], ["-Q"], ["-M"], ["-W"], ["--commodities"]] $ \face -> do
+  env <- envFor (face ++ ["--ascii"])
+  let ctx = fromJust (mkRenderCtx env 140 True)
+      d = faceDoc ctx env defaultCursor
+  assertBool (show face ++ " keys not ASCII: " ++ show (vdKeys d))
+    (all (\(k, l) -> T.all isAscii k && T.all isAscii l) (vdKeys d))

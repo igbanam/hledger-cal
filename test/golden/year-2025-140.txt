@@ -42,4 +42,4 @@ Q4  0  — spent
   Dec                      0  0
                            0
 
- ↑↓←→  month   ⏎  open month   c  currency   v  rates at   /  filter account   q  quit          bars: ━ in ━ out · symbols = currencies used
+                                                                                                bars: ━ in ━ out · symbols = currencies used

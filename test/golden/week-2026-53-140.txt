@@ -18,5 +18,4 @@ Fri 1 Jan  0  ·
 Sat 2      0  ·
 Sun 3      0  ·
 
- ←→  day   ↑↓  transaction   [ ]  week   c  currency   v  rates at   /  filter account       bar = day's spend · grey = native amount @ rate
- q  quit
+                                                                                             bar = day's spend · grey = native amount @ rate

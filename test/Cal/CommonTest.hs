@@ -81,3 +81,11 @@ unit_forecastNextWithPeriod :: Assertion
 unit_forecastNextWithPeriod = do
   e <- envFor ["-M", "-p", "2026-11", "--forecast", "-f", "test/fixtures/forecast.journal"]
   n (kExpenses (kpisFor e IMonth (Span (d 2026 12 1) (d 2027 1 1)))) @?= 4000
+
+-- | An unpriced commodity has no share of the valued total: no "BTC 0.0%".
+unit_mixDropsZeroShares :: Assertion
+unit_mixDropsZeroShares = do
+  e <- envFor ["-M", "-p", "2026-10", "-f", edgePath]
+  let k = kpisFor e IMonth octSpan
+      zeros = [ c | Just (Mix xs) <- [kIncomeMix k, kExpenseMix k], (c, 0) <- xs ]
+  zeros @?= []

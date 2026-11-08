@@ -25,7 +25,7 @@ weekRender args w interactive = do
   env <- envFor args
   let ctx = fromJust (mkRenderCtx env w interactive)
       d = weekDoc ctx (weekModel env defaultCursor)
-  pure (d, printBlock d)
+  pure (d, printBlock ctx d)
 
 variants :: [(String, [String], Int)]
 variants =

@@ -6,9 +6,10 @@ $ hledger cal -Y -p 2026 --native -f design.journal
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 INCOME                     │ EXPENSES                   │ NET                        │ FX EFFECT                 │ MONTHS
-+₦27,500,000 + €100.00     │ −₦3,946,000 − $12,000.00 … │ +₦23,554,000 − $12,000.00… │ —                         │ 10 + 1 open
-                           │                            │ — of income kept           │ period-end vs txn-date    │ none overspent
-                           │                            │                            │ rates                     │
++₦27,500,000 + €100.00     │ −₦3,946,000 − $12,000.00   │ +₦23,554,000 − $12,000.00  │ —                         │ 10 + 1 open
+                           │ − ₹4,800.00 − Dh 500.00    │ − ₹4,800.00 − Dh 500.00    │ period-end vs txn-date    │ none overspent
+                           │ − KD 5.000                 │ + €100.00 − KD 5.000       │ rates                     │
+                           │                            │ — of income kept           │                           │
 
 Q1  +₦6,600,000 − $3,600.00  — spent
   Jan        ₦ $                                            ₦2,500,000                                   +₦2,200,000 − $1,200.00
@@ -41,4 +42,4 @@ Q4  +₦4,254,000 − ₹4,800.00 − $1,200.00 + €100.00 − KD 5.000  open �
                                                               ₦410,000
   Dec                    —  no postings yet  forecast Household payroll $1,200.00
 
- ↑↓←→  month   ⏎  open month   c  currency   v  rates at   /  filter account   q  quit          bars: ━ in ━ out · symbols = currencies used
+                                                                                                bars: ━ in ━ out · symbols = currencies used

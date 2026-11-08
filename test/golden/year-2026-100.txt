@@ -8,8 +8,8 @@ $ hledger cal -Y -p 2026 -f design.journal
 
 INCOME             │ EXPENSES           │ NET                │ FX EFFECT         │ MONTHS
 +27,680,000        │ −22,866,000        │ +4,814,000         │ −552,000          │ 10 + 1 open
-avg 2,516,364 / m… │ avg 2,191,600 / f… │ 17.4% of income    │ period-end vs     │ 1 overspent (Aug)
-                   │                    │ kept               │ txn-date rates    │
+avg 2,516,364 /    │ avg 2,191,600 /    │ 17.4% of income    │ period-end vs     │ 1 overspent (Aug)
+month              │ full month         │ kept               │ txn-date rates    │
                    │                    │                    │ mostly USD        │
                    │                    │                    │ payroll           │
                    │                    │                    │ (−552,000)        │
@@ -45,6 +45,4 @@ Q4  +2,465,000  open · to 6 Nov
              ████▊                                410,000
   Dec        —  no postings yet  forecast Household payroll $1,200.00 ≈ −1,860,000
 
- ↑↓←→  month   ⏎  open month              bars: ━ in ━ out · scale ₦2.8M · symbols = currencies used
- c  currency   v  rates at
- /  filter account   q  quit
+                                          bars: ━ in ━ out · scale ₦2.8M · symbols = currencies used

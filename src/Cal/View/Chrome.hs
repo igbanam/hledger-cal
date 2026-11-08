@@ -85,10 +85,10 @@ flow w sep (x0 : xs0) = go x0 (segsW x0) xs0
 linesB :: [[Seg]] -> Block
 linesB = vcat . map line
 
--- | Word-wrapped text in one style; over-long words are truncated.
+-- | Word-wrapped text in one style, wrapped as 'wrapFig' wraps figures, so
+-- an amount stays whole where it can and is never cut.
 wrapText :: Glyphs -> Style -> Int -> Text -> Block
-wrapText g s w t = linesB
-  [ [Seg s (T.concat [x | Seg _ x <- ss])] | ss <- flow w [Seg s " "] [[Seg s (truncEnd g w wd)] | wd <- T.words t] ]
+wrapText g s w t = linesB [ [Seg s l] | l <- wrapFig g w t ]
 
 -- * Top chrome
 
@@ -174,7 +174,7 @@ showMix ctx = rcTier ctx >= Tier120
 
 card :: RenderCtx -> Int -> Text -> Seg -> [Block] -> Block
 card ctx w label (Seg s v) rest =
-  vcat ([str dim label, str s (truncEnd (rcGlyphs ctx) w v)] ++ rest)
+  vcat ([str dim label] ++ [ str s x | x <- wrapFig (rcGlyphs ctx) w v ] ++ rest)
 
 sub :: RenderCtx -> Int -> Text -> Block
 sub ctx = wrapText (rcGlyphs ctx) dim
@@ -203,7 +203,7 @@ expensesCard ctx w prev k = card ctx w "EXPENSES" (Seg (bold (st RExp)) (fmtSign
 
 netCard :: RenderCtx -> Int -> Kpis -> Block
 netCard ctx w k = card ctx w "NET" (Seg (bold plain) (fmtSigned (rcFmt ctx) (kNet k)))
-  [sub ctx w (maybe (gDash (rcGlyphs ctx)) fmtPct (kKept k) <> " of income kept")]
+  [sub ctx w (maybe (gDash (rcGlyphs ctx)) (fmtPct (rcFmt ctx)) (kKept k) <> " of income kept")]
 
 fxCard :: RenderCtx -> Int -> Kpis -> Block
 fxCard ctx w k = card ctx w "FX EFFECT" value $
@@ -258,7 +258,7 @@ mixBlock ctx kind w (Mix xs) = vcat [bar, linesB (flow w [Seg dim (gSep g)] lege
     widths = zipWith (-) (drop 1 bounds) bounds
     bar = line [ Seg (tinted t (st role)) (T.replicate cells (T.singleton (rankCh i)))
                | (i, t, cells) <- zip3 [0 :: Int ..] tints widths, cells > 0 ]
-    legend = [ [Seg dim (fromMaybe c (symbolOf c) <> " " <> fmtPct sh)] | (c, sh) <- xs ]
+    legend = [ [Seg dim (fromMaybe c (symbolOf c) <> " " <> fmtPct (rcFmt ctx) sh)] | (c, sh) <- xs ]
 
 -- | Key hints on the left (replaced by the message, in the warning colour,
 -- when there is one) and the legend on the right.

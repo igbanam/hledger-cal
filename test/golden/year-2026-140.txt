@@ -44,5 +44,4 @@ Q4  +2,465,000  open · to 6 Nov
                          ██████▋                                           410,000
   Dec                    —  no postings yet  forecast Household payroll $1,200.00 ≈ −1,860,000
 
- ↑↓←→  month   ⏎  open month   c  currency   v  rates at   /  filter account      bars: ━ in ━ out · scale ₦2.8M · symbols = currencies used
- q  quit
+                                                                                  bars: ━ in ━ out · scale ₦2.8M · symbols = currencies used
