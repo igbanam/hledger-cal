@@ -68,28 +68,53 @@ monthDoc ctx m = ViewDoc
     top = topChrome ctx (fmtMonthYear start) (mmBar m) [cards]
 
     -- * Grid
+    -- One bordered box (design F4): a left edge, seven day columns that each
+    -- end in a divider, then the week-net column and the right edge. At
+    -- full width the eight columns are as even as the week nets allow; at
+    -- 100–139 the day columns share what the week nets leave; at 80–99 the
+    -- week net is a row of its own under each week.
     rowMode = tier == Tier80
-    cellW = (w - (if rowMode then 0 else 16)) `div` 7
-    wnW = if rowMode then 0 else w - 7 * cellW
-    -- content between a leading and a trailing space, then the rule; narrow
-    -- cells drop the trailing space, the narrowest (Tier80) the leading one too
-    lead = if cellW >= 12 then 1 else 0
-    inner = cellW - 1 - lead - (if cellW >= 14 then 1 else 0)
+    weeks = mmWeeks m
+    nWeeks = length weeks
+    wnTexts wn = [fmtSigned f (wnNet wn), "in " <> fmtAbs f (wnIn wn), "out " <> fmtAbs f (wnOut wn)]
+    wnNeed = maximum (8 : [ textW x | (_, wn) <- weeks, x <- wnTexts wn ]) + 2
+    spread total n = let (q, r) = total `divMod` n in replicate r (q + 1) ++ replicate (n - r) q
+    (colWs, wnW)
+      | rowMode = (spread (w - 1) 7, 0)
+      | tier == TierFull =
+          let wnCol = max ((w - 1) `div` 8) (wnNeed + 1)
+          in (spread (w - 1 - wnCol) 7, wnCol - 1)
+      | otherwise = let cw = (w - 2 - 14) `div` 7 in (replicate 7 cw, w - 2 - 7 * cw)
+    minCol = minimum colWs
+    -- content between a leading and a trailing space, then the divider;
+    -- narrow cells drop the trailing space, the narrowest the leading one too
+    lead = if minCol >= 12 then 1 else 0
+    trail = if minCol >= 14 then 1 else 0
+    innerOf cw = cw - 1 - lead - trail
     rule = st RRule
     vrule = Seg rule (T.singleton (bxV bx))
-    cellLine ss = Line ([spaces lead] ++ ss ++ [spaces (cellW - 1 - lead - segsW ss), vrule])
-    ruleLine end = line $
-      [ Seg rule (T.replicate (cellW - 1) (T.singleton (bxH bx)) <> T.singleton (if i == 7 && rowMode then bxRT bx else end))
-      | i <- [1 .. 7 :: Int] ]
-      ++ [ Seg rule (T.replicate wnW (T.singleton (bxH bx))) | wnW > 0 ]
-    headerLine = line $
-      concat [ let Line ss = cellLine [Seg dim d] in ss | d <- ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] ]
-      ++ [ Seg dim (T.justifyRight wnW ' ' "week net") | wnW > 0 ]
+    hrule n = T.replicate n (T.singleton (bxH bx))
+    -- the left edge of day column i, counted from the box's left edge
+    colStart i = sum (take i colWs)
+    cellSegs cw ss = [spaces lead] ++ ss ++ [spaces (cw - 1 - lead - segsW ss), vrule]
+    -- the week-net column: the panel tint under every cell, padding included
+    wnTint = onBg RPanel 100
+    wnSegs sty t = [Seg (wnTint plain) (T.replicate (wnW - 1 - textW t) " "), Seg (wnTint sty) t, Seg (wnTint plain) " "]
+    gridLine cells wn = line ([vrule] ++ concat (zipWith cellSegs colWs cells) ++ (if wnW > 0 then wn ++ [vrule] else []))
+    -- a horizontal rule: left end, joints under the dividers, right end
+    ruleLine l mid r = line
+      [ Seg rule (T.singleton l <> T.concat
+          [ hrule (cw - 1) <> T.singleton (if i == 7 && wnW == 0 then r else mid) | (i, cw) <- zip [1 :: Int ..] colWs ]
+          <> (if wnW > 0 then hrule wnW <> T.singleton r else "")) ]
+    headerLine = gridLine
+      [ [Seg dim d] | d <- ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] ]
+      (wnSegs dim "week net")
 
     isCursor c = interactive && dcDay c == mmCursor m
     dayNum d = let (_, _, x) = toGregorian d in T.pack (show x)
-    cellRows c = l1 : nets ++ natives
+    cellRows cw c = l1 : nets ++ natives
       where
+        inner = innerOf cw
         dayT = dayNum (dcDay c)
         daySty
           | dcInMonth c = bold plain
@@ -104,31 +129,40 @@ monthDoc ctx m = ViewDoc
           Just (_, amt, more) | fBase f /= Nothing ->
             [ [Seg dim x] | x <- wrapFig g inner (fmtNative f amt <> (if more > 0 then " +" <> T.pack (show more) else "")) ]
           _ -> []
-    weekNetCol wn = alignR wnW $ vcat $
-      [ str (bold (signStyle g netT)) x | x <- wrapFig g (wnW - 1) netT ]
-      ++ [ str dim x | x <- wrapFig g (wnW - 1) ("in " <> fmtAbs f (wnIn wn)) ]
-      ++ [ str dim x | x <- wrapFig g (wnW - 1) ("out " <> fmtAbs f (wnOut wn)) ]
+    weekNetLines wn =
+      [ (bold (signStyle g netT), x) | x <- wrapFig g (wnW - 1) netT ]
+      ++ [ (dim, x) | t <- drop 1 (wnTexts wn), x <- wrapFig g (wnW - 1) t ]
       where netT = fmtSigned f (wnNet wn)
+    -- Tier80: the week net as a line of its own, inside the box
     weekRow wn = vcat
-      [ line (spaces lead : l) | l <- flowItems (w - lead) [Seg dim (gSep g)]
+      [ line ([vrule, spaces 1] ++ l ++ [spaces (w - 3 - segsW l), vrule])
+      | l <- flowItems (w - 3) [Seg dim (gSep g)]
           [ [Seg dim "week net ", Seg (bold (signStyle g netT)) netT]
           , [Seg dim ("in " <> fmtAbs f (wnIn wn))]
           , [Seg dim ("out " <> fmtAbs f (wnOut wn))] ] ]
       where netT = fmtSigned f (wnNet wn)
-    weekBlock (cells, wn) = hcat 0 (map cellBlock rowsOf ++ cols)
+    weekBlock (cells, wn) = vcat
+      [ gridLine [ at j rs | rs <- rowsOf ] (if wnW > 0 then maybe (wnSegs plain "") (uncurry wnSegs) (atM j wnLs) else [])
+      | j <- [0 .. h - 1] ]
       where
-        cols = [ weekNetCol wn | not rowMode ]
-        rowsOf = map cellRows cells
-        h = maximum (3 : map (length . bLines) cols ++ map length rowsOf)
-        cellBlock rs = Block cellW (map cellLine (rs ++ replicate (h - length rs) []))
-    weeks = mmWeeks m
-    nWeeks = length weeks
+        rowsOf = zipWith cellRows colWs cells
+        wnLs = if wnW > 0 then weekNetLines wn else []
+        h = maximum (3 : length wnLs : map length rowsOf)
+        at j rs = fromMaybe [] (atM j rs)
+        atM j xs = case drop j xs of
+          (x : _) -> Just x
+          [] -> Nothing
     tagged =
-      [(False, headerLine), (False, ruleLine (bxX bx))]
+      [(False, ruleLine (bxTL bx) (bxTT bx) (bxTR bx)), (False, headerLine), (False, ruleLine (bxLT bx) (bxX bx) (bxRT bx))]
       ++ concat
-        [ [ (any isCursor (fst wk), weekBlock wk)
-          , (False, if rowMode then weekRow (snd wk) else ruleLine (if i == nWeeks then bxBT bx else bxX bx)) ]
+        [ (any isCursor (fst wk), weekBlock wk) : after i wk
         | (i, wk) <- zip [1 :: Int ..] weeks ]
+    after i wk
+      | rowMode =
+          [ (False, ruleLine (bxLT bx) (bxBT bx) (bxRT bx)), (False, weekRow (snd wk))
+          , (False, if i == nWeeks then ruleLine (bxBL bx) (bxH bx) (bxBR bx) else ruleLine (bxLT bx) (bxTT bx) (bxRT bx)) ]
+      | otherwise =
+          [ (False, if i == nWeeks then ruleLine (bxBL bx) (bxBT bx) (bxBR bx) else ruleLine (bxLT bx) (bxX bx) (bxRT bx)) ]
     offsets = scanl (+) 0 [ length (bLines b) | (_, b) <- tagged ]
     cursorRow
       | interactive = lookup True (zip (map fst tagged) offsets)
@@ -140,32 +174,41 @@ monthDoc ctx m = ViewDoc
     withCursor b = case (cursorRow, cursorCol) of
       (Just r, Just i) ->
         let h = maybe 0 (length . bLines) (lookup r (zip offsets (map snd tagged)))
-        in cursorRect (r - 1, i * cellW - 1) (r + h, i * cellW + cellW - 1) b
+        in cursorRect (r - 1, colStart i) (r + h, colStart (i + 1)) b
       _ -> b
     body = withCursor (vcat (map snd tagged))
 
     -- * Bottom panels
+    -- Plain boxes that open with a title row (design F4): the subject in
+    -- bold on the left, its summary dimmed on the right.
     full = tier == TierFull
-    ratesContent = fmap ratesLines (mmRates m)
-    ratesW = maybe 0 (\b -> min (w `div` 2) (bWidth b + 4)) ratesContent
+    ratesNatural = fmap (\rp -> ratesLines rp 0) (mmRates m)
+    -- at full width the rates panel takes about the artboard's share
+    ratesW = maybe 0 (\b -> min (w `div` 2) (max (bWidth b + 4) (if full then w * 9 `div` 25 else 0))) ratesNatural
+    ratesContent = fmap (\rp -> ratesLines rp (ratesW - 4)) (mmRates m)
     detailW = case ratesContent of
       Just _ | full -> w - ratesW - 2
       _ -> w
-    detailContent = detailLines (detailW - 4)
+    detailContent = vcat [titleRow (detailW - 4) detailLeft detailRight, detailLines (detailW - 4)]
     pad h b = vcat [b, Block 0 (replicate (h - length (bLines b)) (Line []))]
-    box title bw b = boxed g (Just (" " <> title <> " ")) bw (hcat 0 [str plain " ", padTo (bw - 4) b])
+    box bw b = boxed g Nothing bw (hcat 0 [str plain " ", padTo (bw - 4) b])
+    -- left and right on one row when they fit, else the right part under it
+    titleRow tw l r
+      | textW l + 2 + textW r <= tw = line [Seg (bold plain) l, spaces (tw - textW l - textW r), Seg dim r]
+      | otherwise = vcat [str (bold plain) (truncEnd g tw l), line [spaces (tw - textW r'), Seg dim r']]
+      where r' = truncEnd g tw r
     dd = mmDetail m
-    detailTitle = T.intercalate (gSep g) $
-      [ fmtDayLong (ddDay dd), plural (length (ddTxns dd)) "txn" "txns", plural (ddPostings dd) "posting" "postings" ]
+    detailLeft = fmtDayLong (ddDay dd)
+    detailRight = T.intercalate (gSep g) $
+      [ plural (length (ddTxns dd)) "txn" "txns", plural (ddPostings dd) "posting" "postings" ]
       ++ [ T.intercalate ", " (map codeOf cs) | let cs = ddCommodities dd, not (null cs) ]
-    ratesTitle rp = "Rates" <> gSep g <> fmtDayMon (rpDate rp)
-    panels = case (mmRates m, ratesContent) of
-      (Just rp, Just rc)
+    panels = case ratesContent of
+      Just rc
         | full ->
             let h = max (length (bLines detailContent)) (length (bLines rc))
-            in hcat 2 [box detailTitle detailW (pad h detailContent), box (ratesTitle rp) ratesW (pad h rc)]
-        | otherwise -> vcat [box detailTitle detailW detailContent, blankB, box (ratesTitle rp) (min w (bWidth rc + 4)) rc]
-      _ -> box detailTitle detailW detailContent
+            in hcat 2 [box detailW (pad h detailContent), box ratesW (pad h rc)]
+        | otherwise -> vcat [box detailW detailContent, blankB, box (min w (bWidth rc + 4)) rc]
+      _ -> box detailW detailContent
 
     -- day detail: one row per posting, then the note
     detailLines dI
@@ -193,10 +236,11 @@ monthDoc ctx m = ViewDoc
         rowLine (desc, r) =
           let sty = if drForecast r then dim else plain
               d = truncEnd g descW desc
+              dsty = if drForecast r then dim else bold plain
               as = acctSegs g acctW sty r
               v = valueOf r
           in line $
-            [Seg sty d, spaces (descW - textW d + 2)] ++ as ++ [spaces (acctW - segsW as + 2)]
+            [Seg dsty d, spaces (descW - textW d + 2)] ++ as ++ [spaces (acctW - segsW as + 2)]
             ++ [spaces (natW - textW (nativeOf r)), Seg sty (nativeOf r), spaces 2]
             ++ [Seg dim (rateOf r), spaces (rateW - textW (rateOf r) + 2)]
             ++ [spaces (valW - textW v), Seg (signStyle g v) v]
@@ -211,12 +255,18 @@ monthDoc ctx m = ViewDoc
           NoteNone -> []
         noteLines
           | null notePieces = []
-          | otherwise = blankB : map line (flowItems dI [Seg dim (gSep g)] [ [Seg dim p] | p <- notePieces ])
+          | otherwise = map line (flowItems dI [Seg dim (gSep g)] [ [Seg dim p] | p <- notePieces ])
 
-    -- rates panel: heading, then one row per commodity
-    ratesLines rp = vcat (str dim heading : (if null rws then [str dim "no other commodities"] else map rateLine rws))
+    -- rates panel: the title row, then one row per commodity, the fresh
+    -- rates first and the stale or missing ones after them (as in the
+    -- artboard). @rw@ is the width to fill: space beyond the natural width
+    -- goes into the gaps after the code and after the rate.
+    ratesLines rp rw = vcat (titleRow tw title heading
+                              : (if null rws then [str dim "no other commodities"] else map rateLine rws))
       where
-        rws = rpRows rp
+        title = "Rates" <> gSep g <> fmtDayMon (rpDate rp)
+        rws = filter (not . unsure) (rpRows rp) ++ filter unsure (rpRows rp)
+        unsure r = isStale r || rtInfo r == Nothing
         bsym = fromMaybe (rpBase rp) (symbolOf (rpBase rp))
         delta = gDelta g
         heading
@@ -228,21 +278,28 @@ monthDoc ctx m = ViewDoc
         deltaT r = case rtDeltaPct r of
           Just d | not (isStale r) -> fmtDeltaPct f d
           _ -> gDash g
-        source r = case (rtInfo r, rtStaleDays r) of
-          (Nothing, _) -> Seg (st RWarn) "no price"
-          (Just i, Just n) -> Seg (st RWarn) ("stale" <> gSep g <> fmtDayMon (riDate i) <> " (" <> T.pack (show n) <> " d)")
-          (Just i, Nothing) -> Seg dim $ case riSource i of
+        sourceT r = case (rtInfo r, rtStaleDays r) of
+          (Nothing, _) -> "no price"
+          (Just i, Just n) -> "stale" <> gSep g <> fmtDayMon (riDate i) <> " (" <> T.pack (show n) <> " d)"
+          (Just i, Nothing) -> case riSource i of
             SrcDeclared -> "P" <> gSep g <> fmtDayMon (riDate i)
             SrcInferred -> "from txn " <> fmtDayMon (riDate i)
             SrcVia x -> "via " <> codeOf x <> gSep g <> fmtDayMon (riDate i)
+        source r = Seg (if unsure r then st RWarn else dim) (sourceT r)
         codeW = maximum (0 : map (segsW . codeSegs) rws)
         rateW = maximum (0 : map (textW . rateT) rws)
         deltaW = maximum (0 : map (textW . deltaT) rws)
+        srcW = maximum (0 : map (textW . sourceT) rws)
+        natural = codeW + 2 + rateW + 2 + deltaW + 2 + srcW
+        tw = max rw (max natural (textW title + 2 + textW heading))
+        extra = max 0 (rw - natural)
+        gap1 = 2 + extra - extra `div` 3
+        gap2 = 2 + extra `div` 3
         rateLine r =
           let cs = codeSegs r
           in line $
-            cs ++ [spaces (codeW - segsW cs + 2)]
-            ++ [spaces (rateW - textW (rateT r)), Seg plain (rateT r), spaces 2]
+            cs ++ [spaces (codeW - segsW cs + gap1)]
+            ++ [spaces (rateW - textW (rateT r)), Seg plain (rateT r), spaces gap2]
             ++ [spaces (deltaW - textW (deltaT r)), Seg dim (deltaT r), spaces 2, source r]
 
     -- * Footer

@@ -11,6 +11,7 @@ import Test.Tasty.HUnit
 
 import Cal.Doc
 import Cal.Model.Month (monthModel)
+import Cal.Theme (Role (..))
 import Cal.Types (Settings (..))
 import Cal.View.Month (monthDoc)
 import Cal.View.Types
@@ -88,7 +89,7 @@ unit_checks = do
   assertBool "30 Oct native" (hasLine t ["$1,200.00"])
   t30 <- plainText <$> monthRender ["-M", "-p", "2026-10-30"] 140
   assertBool "30 Oct note" ("at the txn-date rate (₦1,540.00) this was −1,848,000 · FX effect −12,000" `T.isInfixOf` t30)
-  assertBool "30 Oct title" ("Fri 30 Oct 2026 · 1 txn · 2 postings · USD" `T.isInfixOf` t30)
+  assertBool "30 Oct title" (hasLine t30 ["Fri 30 Oct 2026", "1 txn · 2 postings · USD"])
   assertBool "30 Oct rate" (hasLine t30 ["expenses:payroll:security", "$700.00", "@ ₦1,550.00", "−1,085,000"])
   assertBool "rates title" ("Rates · 31 Oct" `T.isInfixOf` t)
   assertBool "rates heading" ("₦ per 1 unit · Δ month" `T.isInfixOf` t)
@@ -169,3 +170,105 @@ unit_cursorBorder = do
   assertBool "no inverse cell" (not (any (stInverse . snd) (concat (cellStyles body))))
   let ctx' = fromJust (mkRenderCtx env 140 False)
   cursorCells (vdBody (monthDoc ctx' (monthModel env))) @?= []
+
+interactiveDoc :: [String] -> Int -> IO ViewDoc
+interactiveDoc args w = do
+  env <- envFor args
+  let ctx = fromJust (mkRenderCtx env w True)
+  pure (monthDoc ctx (monthModel env))
+
+-- | The calendar is one bordered box at every tier (design F4): corners on
+-- the first and last lines, a left and a right edge on every other line,
+-- and the box as wide as the page.
+unit_outerBorder :: Assertion
+unit_outerBorder = mapM_ check [200, 140, 120, 100, 80]
+  where
+    check w = do
+      d <- interactiveDoc oct w
+      ls <- case T.lines (plainText (vdBody d)) of
+        xs@(_ : _ : _) -> pure xs
+        xs -> assertFailure ("too few body lines: " ++ show xs)
+      let firstLast l = (T.head l, T.last l)
+          mids = drop 1 (init ls)
+      fmap firstLast (take 1 ls) @?= [('┌', '┐')]
+      firstLast (last ls) @?= ('└', '┘')
+      assertBool (show w ++ ": every line has a left and a right edge")
+        (all (\l -> T.head l `elem` ("│├" :: String) && T.last l `elem` ("│┤" :: String)) mids)
+      assertBool (show w ++ ": the box fills the width") (all ((== w) . textW) ls)
+
+-- | The week-net column sits on the panel tint (design F4), its padding
+-- included; the day cells don't.
+unit_weekNetTint :: Assertion
+unit_weekNetTint = do
+  d <- interactiveDoc oct 140
+  let rows = cellStyles (vdBody d)
+      tinted' (_, s) = stBg s == Just (RPanel, 100)
+      ls = T.lines (plainText (vdBody d))
+      hdr = rows !! 1
+      wn = [ (c, s) | (c, s) <- hdr, tinted' (c, s) ]
+  assertBool "header week net is tinted" ("week net" `T.isInfixOf` T.pack (map fst wn))
+  -- the first week's net line: every cell between the last divider and the edge is tinted
+  let i = length (takeWhile (not . ("+2,455,000" `T.isInfixOf`)) ls)
+      row = rows !! i
+      lastDiv = last [ k | (k, (ch, s)) <- zip [0 :: Int ..] row, ch == '│', stRole s == RRule, k < length row - 1 ]
+      col = take (length row - lastDiv - 2) (drop (lastDiv + 1) row)
+  assertBool ("week-net cells tinted: " ++ show (map fst col)) (all tinted' col && not (null col))
+  assertBool "day cells untinted" (not (any tinted' (take lastDiv row)))
+
+-- | The cursor box is closed on all four sides at every tier, for a
+-- Monday, a Friday and a Sunday (design S4; F1 review: Tier80 and Monday).
+unit_cursorBoxClosed :: Assertion
+unit_cursorBoxClosed = sequence_
+  [ check w day | w <- [200, 140, 120, 100, 80], day <- ["2026-10-05", "2026-10-30", "2026-10-11"] ]
+  where
+    check w day = do
+      d <- interactiveDoc ["-M", "-p", day] w
+      let cs = cursorCells (vdBody d)
+          tag = day ++ " at " ++ show w
+          rows = [ r | (r, _, _) <- cs ]
+          (r0, r1) = (minimum rows, maximum rows)
+          colsAt r = [ c | (r', c, _) <- cs, r' == r ]
+          top = colsAt r0
+          (c0, c1) = (minimum top, maximum top)
+      assertBool (tag ++ ": no cursor cells") (not (null cs))
+      assertEqual (tag ++ ": top edge is contiguous") [c0 .. c1] top
+      assertEqual (tag ++ ": bottom edge matches the top") top (colsAt r1)
+      mapM_ (\r -> assertEqual (tag ++ ": sides on line " ++ show r) [c0, c1] (colsAt r)) [r0 + 1 .. r1 - 1]
+      assertBool (tag ++ ": a box, not a line") (r1 - r0 >= 2 && c1 - c0 >= 2)
+      Just r <- pure (vdCursorRow d)
+      assertEqual (tag ++ ": the cursor row is the box's first inner line") (r0 + 1) r
+
+-- | The day detail and rates panels open with a title row inside the box
+-- (design F4): the day bold on the left and its counts on the right; the
+-- rates date on the left and the heading on the right.
+unit_panelTitles :: Assertion
+unit_panelTitles = do
+  t30 <- plainText <$> monthRender ["-M", "-p", "2026-10-30"] 140
+  let ls = T.lines t30
+      titleL = [ l | l <- ls, "Fri 30 Oct 2026" `T.isInfixOf` l ]
+  assertBool ("detail title row: " ++ show titleL) (hasLine t30 ["│ Fri 30 Oct 2026 ", " 1 txn · 2 postings · USD │"])
+  assertBool "rates title row" (hasLine t30 ["│ Rates · 31 Oct ", " ₦ per 1 unit · Δ month │"])
+  -- no title in the top border any more
+  assertBool "plain top borders" (not (any ("┌─ " `T.isPrefixOf`) ls))
+  -- the FX note follows the postings directly
+  let after = dropWhile (not . ("expenses:payroll:domestic" `T.isInfixOf`)) ls
+  assertBool "note under the postings" ("at the txn-date rate" `T.isInfixOf` (after !! 1))
+
+-- | Stale rates sort after the fresh ones, as in the artboard.
+unit_ratesOrder :: Assertion
+unit_ratesOrder = do
+  t <- plainText <$> monthRender oct 140
+  let codes = [ c | l <- T.lines t, c <- ["USD", "AED", "EUR", "INR", "KWD"], ("│ " <> c <> " ") `T.isInfixOf` l ]
+  codes @?= ["USD", "EUR", "INR", "KWD", "AED"]
+
+-- | At full width the week-net column is as wide as a day column, give or
+-- take one cell (design F4: eight even columns).
+unit_evenColumns :: Assertion
+unit_evenColumns = mapM_ check [200, 140]
+  where
+    check w = do
+      d <- interactiveDoc oct w
+      let topL = T.concat (take 1 (T.lines (plainText (vdBody d))))
+          joints = [ k | (k, ch) <- zip [0 :: Int ..] (T.unpack topL), ch `elem` ("┌┬┐" :: String) ]
+          widths = zipWith (-) (drop 1 joints) joints
+      assertBool (show w ++ ": column widths " ++ show widths) (maximum widths - minimum widths <= 1 && length widths == 8)
