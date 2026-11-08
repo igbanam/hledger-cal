@@ -2,6 +2,7 @@
 -- | The Quarter face: a grid of quarter cards and a year-to-date strip. Pure.
 module Cal.View.Quarter (quarterDoc) where
 
+import Data.List (intercalate)
 import qualified Data.Text as T
 import Data.Time.Calendar (addDays, toGregorian)
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -10,13 +11,14 @@ import Cal.Currency (codeOf)
 import Cal.Doc
 import Cal.Format (fmtDayMon, fmtPct, fmtQty, fmtScale, fmtSigned)
 import Cal.Glyphs (Glyphs (..))
-import Cal.Model.Common (Kpis (..))
+import Cal.Model.Common (Kpis (..), Mix)
+import Cal.Model.Shared (MonthRow (..))
 import Cal.Model.Quarter
 import Cal.Theme (Role (..))
 import Cal.Types
 import Cal.View.Chrome
 import Cal.View.Types
-import Cal.View.Year (monthRowBlocks)
+import Cal.View.Year (cardHint, monthRowBlocks)
 
 quarterDoc :: RenderCtx -> QuarterModel -> ViewDoc
 quarterDoc ctx m = ViewDoc
@@ -40,15 +42,19 @@ quarterDoc ctx m = ViewDoc
     chunks [] = []
     chunks xs = let (a, b) = splitAt perRow xs in a : chunks b
     allMonths = concatMap qcMonths (qmCards m)
+    blank = Block 0 [Line []]
     bwFor need = max 4 (min (iw `div` 3) (iw - 2 - 11 - 7 - need))
     monthBlocks c = map snd (monthRowBlocks ctx iw False bwFor Nothing allMonths (qcMonths c))
     contents = [ (qcIndex c, cardContent c) | c <- qmCards m ]
     gridRows = chunks contents
-    rowHeights = [ maximum (map (length . bLines . snd) r) | r <- gridRows ]
-    -- the cursor card's border takes the cursor style (design S4)
-    boxedCard h (i, b) =
+    -- a card is its upper part, flexible space, and its month rows at the bottom
+    cardH (up, low) = length (bLines up) + length (bLines low)
+    rowHeights = [ maximum (map (cardH . snd) r) | r <- gridRows ]
+    -- the cursor card's border takes the cursor style (design S4); the
+    -- current quarter is marked by its chip alone (purple is the cursor only)
+    boxedCard h (i, (up, low)) =
       boxedIn (if rcInteractive ctx && i == qmCursor m then cursorBorder else st RRule) g Nothing cw
-        (hcat 0 [str plain " ", padTo iw (vcat [b, Block 0 (replicate (h - length (bLines b)) (Line []))])])
+        (hcat 0 [str plain " ", padTo iw (vcat [up, Block 0 (replicate (h - cardH (up, low)) (Line [])), low])])
     gridRowBlock h r = hcat gap (map (boxedCard h) r)
     grid = [ gridRowBlock h r | (r, h) <- zip gridRows rowHeights ]
 
@@ -61,8 +67,14 @@ quarterDoc ctx m = ViewDoc
           (i : _) -> Just (sum (take i [ h + 2 | h <- rowHeights ]) + 1)
           [] -> Nothing
 
-    -- one card's content (without its box)
-    cardContent c = vcat $ [titleLine c, figures c] ++ mixes c ++ monthBlocks c
+    -- one card's content (without its box): the part above the flexible
+    -- space and the month rows below it. Two columns (≥ 100) follow the
+    -- design's rhythm (F3): header, blank, labels and figures, blank, the in
+    -- mix bar with its legend beside it, blank, the out one, then the month
+    -- rows as paired bars. One column (80–99) keeps the compact §10.5 card.
+    cardContent c
+      | single = (vcat ([titleLine c, figures c] ++ monthBlocks c), emptyB)
+      | otherwise = (vcat ([titleLine c, blank, figures c] ++ mixRows c ++ [blank]), vcat (map monthRow (qcMonths c)))
     monAbbr d = T.pack (formatTime defaultTimeLocale "%b" d)
     enDash = if gDash g == "-" then "-" else "\8211"
     titleLine c =
@@ -97,12 +109,64 @@ quarterDoc ctx m = ViewDoc
           share = max 0 (iw - sum ws - colGap * 3) `div` 4
       in hcat colGap [ padTo (cwid + share) col | (col, cwid) <- zip (figCols wideNet c) ws ]
     fxSeg q = Seg (bold (st (if q < 0 then RExp else if q > 0 then RInc else RText))) (fmtQty f q)
-    mixes c
-      | rcTier ctx < Tier120 = []
-      | otherwise =
-          [ hcat 0 [vcat [str dim "in  ", str dim "    "], mixBlock ctx KIncome (iw - 4) mx] | Just mx <- [kIncomeMix (qcKpis c)] ]
-          ++ [ hcat 0 [vcat [str dim "out ", str dim "    "], mixBlock ctx KExpense (iw - 4) mx] | Just mx <- [kExpenseMix (qcKpis c)] ]
 
+    -- the label column shared by the mix and month rows
+    lead = 5
+    mixesOf :: QuarterCard -> [(Kind, T.Text, Mix)]
+    mixesOf c = [ (KIncome, "in", mx) | Just mx <- [kIncomeMix (qcKpis c)] ] ++ [ (KExpense, "out", mx) | Just mx <- [kExpenseMix (qcKpis c)] ]
+    legendSep = [Seg dim (gSep g)]
+    legendW mx = segsW (intercalate legendSep (mixLegend ctx mx))
+    maxLegend = maximum (0 : [ legendW mx | c <- qmCards m, (_, _, mx) <- mixesOf c ])
+    -- about 40% of the card, less where the widest legend needs the room
+    mixBw = max 8 (min (iw * 2 `div` 5) (iw - lead - 2 - maxLegend))
+    mixRows c
+      | rcTier ctx < Tier120 = []
+      | otherwise = concat [ [blank, mixRow kind label mx] | (kind, label, mx) <- mixesOf c ]
+    mixRow kind label mx =
+      let room = iw - lead - mixBw - 2
+          legendLines = case flow room legendSep (mixLegend ctx mx) of
+            [] -> [[]]
+            ls -> ls
+      in vcat [ line ((if i == 0 then Seg dim label : [spaces (lead - textW label)] ++ mixBar ctx kind mixBw mx
+                       else [spaces (lead + mixBw)]) ++ [spaces 2] ++ l)
+              | (i, l) <- zip [0 :: Int ..] legendLines ]
+
+    -- month rows: the name, one paired in/out bar, the net at the card's right edge
+    allMonthRows = concatMap qcMonths (qmCards m)
+    netSuffix r = [ Seg (st RExp) (" " <> gOverspent g) | mrOverspent r ] ++ [ Seg dim (" " <> gOpen g) | mrStatus r == Open ]
+    isEmpty r = mrStatus r == Future && not (mrHasPostings r)
+    rightNeed = maximum (0 : [ textW (fmtSigned f (mrNet r)) + segsW (netSuffix r) | r <- allMonthRows, not (isEmpty r) ])
+    rightW = min rightNeed (iw - lead - 4 - 3)
+    monthBw = max 4 (min (iw * 7 `div` 10) (iw - lead - 3 - rightW))
+    monthName r = Seg plain (monAbbr (spStart (mrSpan r)))
+    monthRow r
+      | isEmpty r = emptyMonthRow r
+      | otherwise =
+          let suffix = netSuffix r
+              sty = bold (if mrOverspent r then st RExp else plain)
+              -- native: no bars, so the net has the row to itself
+              bw = if mrInFrac r == Nothing && mrOutFrac r == Nothing then 0 else monthBw
+              parts = wrapFig g (max 1 (iw - lead - bw - 1 - segsW suffix)) (fmtSigned f (mrNet r))
+              n = length parts
+              net = vcat [ line (Seg sty t : (if i == n then suffix else [])) | (i, t) <- zip [1 :: Int ..] parts ]
+          in hcat 0 $ [padTo lead (line [monthName r])] ++ [ pairedBar ctx bw (mrInFrac r) (mrOutFrac r) | bw > 0 ]
+                      ++ [alignR (iw - lead - bw) net]
+    -- a future month: "· no postings yet (forecast …)", the hint beneath
+    -- when it doesn't fit beside it
+    emptyMonthRow r =
+      let noPost = T.strip (gSep g) <> " no postings yet"
+          nameSegs = [monthName r, spaces (lead - textW (monAbbr (spStart (mrSpan r))))]
+          first = nameSegs ++ [Seg dim noPost]
+          beside = iw - lead - textW noPost - 1 - 2
+          paren ls = case ls of
+            [] -> []
+            [x] -> ["(" <> x <> ")"]
+            (x : xs) -> ("(" <> x) : init xs ++ [last xs <> ")"]
+      in case mrHint r of
+           Nothing -> line first
+           Just h -> case cardHint g f beside h of
+             [x] | beside > 0 -> line (first ++ [Seg dim (" (" <> x <> ")")])
+             _ -> vcat (line first : [ line [spaces lead, Seg dim t] | t <- paren (cardHint g f (iw - lead - 2) h) ])
 
     -- year-to-date strip
     strip = boxed g Nothing w (hcat 0 [str plain " ", padTo (w - 4) (vcat stripLines)])

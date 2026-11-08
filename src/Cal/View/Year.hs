@@ -2,7 +2,7 @@
 -- | The Year face: four quarter groups. At ≥ 140 columns each quarter is a
 -- row of boxes, a quarter summary and three month cards (design F2);
 -- narrower, a group of month rows. Pure.
-module Cal.View.Year (yearDoc, monthRowBlocks) where
+module Cal.View.Year (yearDoc, monthRowBlocks, cardHint) where
 
 import Data.List (intersperse)
 import Data.Text (Text)

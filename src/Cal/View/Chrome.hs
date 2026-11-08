@@ -6,7 +6,7 @@ module Cal.View.Chrome
   , cardRow, cardRowMin, mixBlock, footerBlock
   , colourOn, barCells, thinBar, trackSegs, mixBar, mixLegend, pairedBar
   , dim, plain, spaces, segsW, signStyle, acctSegs
-  , colW, acctNeed, rowValue
+  , colW, acctNeed, rowValue, flow
   ) where
 
 import Data.List (groupBy, intersperse)
