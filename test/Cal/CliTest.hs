@@ -1,6 +1,7 @@
 module Cal.CliTest where
 
 import Cal.Cli
+import Cal.Print (renderPrint)
 import Cal.Model.Common (Kpis (..), kpisFor)
 import Cal.Types
 import Cal.Valuation (baseQty)
@@ -127,3 +128,25 @@ unit_rejectsNoCalendarMeaning =
   mapM rejected [["--depth=1"], ["-E"], ["-B"], ["--date2"], ["--pivot=payee"], ["-D"], ["--pretty"]]
     >>= (@?= map (Left . (++ " has no meaning in hledger cal"))
           ["--depth", "-E/--empty", "-B/--cost", "--date2", "--pivot", "-D/--daily", "--pretty"])
+
+-- | A date: query term sets the focus period, as -p does (hledger merges
+-- both into the report span); it leaves the query args.
+unit_dateQueryFocus :: Assertion
+unit_dateQueryFocus = do
+  s <- snd <$> settingsFor ["date:2026-10"]
+  (sFace s, sFocus s, sQueryArgs s) @?= (FaceMonth, fromGregorian 2026 10 1, [])
+  cmd ["date:2026-10", "acct:expenses"] >>= (@?= "hledger cal -M -p 2026-10 -f design.journal acct:expenses")
+
+-- | With -p and date: both given, the focus comes from their intersection.
+unit_dateQueryIntersectsPeriod :: Assertion
+unit_dateQueryIntersectsPeriod = do
+  s <- snd <$> settingsFor ["-M", "-p", "2026", "date:2026-10"]
+  sFocus s @?= fromGregorian 2026 10 1
+  w <- snd <$> settingsFor ["-W", "-p", "2026-10", "date:2026-10-14.."]
+  sFocus w @?= fromGregorian 2026 10 14
+
+unit_dateQueryPrintsAsPeriod :: Assertion
+unit_dateQueryPrintsAsPeriod = do
+  a <- envFor ["-M", "date:2026-10", "--color=never"]
+  b <- envFor ["-M", "-p", "2026-10", "--color=never"]
+  renderPrint a 140 @?= renderPrint b 140

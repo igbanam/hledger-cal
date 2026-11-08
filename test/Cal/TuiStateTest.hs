@@ -426,3 +426,14 @@ unit_colour256 = do
       if r == RPanel then pure ()
       else Vty.attrForeColor (attrMapLookup (styleAttr (Doc.tinted t (Doc.st r))) m) @?= idx c)
     [100, 60, 40, 25]) [minBound .. maxBound :: Role]
+
+-- | A date: term typed into the / filter sets the focus period, as on the
+-- command line; the other terms filter.
+unit_filterDateSetsPeriod :: IO ()
+unit_filterDateSetsPeriod = do
+  s0 <- mk ["-M", "-p", "2026-10"]
+  let s = run s0 (CmdFilterOpen : map CmdFilterChar "date:2026-08 acct:fuel" ++ [CmdFilterSubmit])
+  (focus s, sQueryArgs (st s)) @?= (d 2026 8 1, ["acct:fuel"])
+  let w = run s0 [CmdFace FaceWeek]
+      s' = run w (CmdFilterOpen : map CmdFilterChar "date:2026-10-14" ++ [CmdFilterSubmit])
+  (sFace (st s'), focus s', sQueryArgs (st s'), sQuery (st s')) @?= (FaceWeek, d 2026 10 14, [], Any)

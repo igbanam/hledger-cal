@@ -12,6 +12,7 @@ module Cal.Tui.State
   , errorSummary
   ) where
 
+import Cal.Cli (dropDateArgs, spanFocus)
 import Cal.Currency (codeOf)
 import Cal.Journal (journalDataRange)
 import Cal.Model.Commodities (CommodityRow (..), CommoditiesModel (..), commoditiesModel)
@@ -31,7 +32,8 @@ import Data.Time.Calendar (addDays, fromGregorian, toGregorian)
 import Data.Time.Clock (UTCTime, diffUTCTime)
 import Graphics.Vty (Key (..), Modifier (..))
 import Hledger.Data.Types (Journal)
-import Hledger.Query (Query (..), parseQuery, simplifyQuery)
+import Hledger.Data.Types (DateSpan (..))
+import Hledger.Query (Query (..), filterQuery, parseQuery, queryDateSpan, queryIsDateOrDate2, simplifyQuery)
 import System.FilePath (takeFileName)
 
 -- | 'PaneFilter' carries the draft and the pane to return to on Enter/Esc.
@@ -195,8 +197,15 @@ submitFilter :: UTCTime -> Text -> UiState -> UiState
 submitFilter now draft us
   | T.null (T.strip draft) = withSettings (\st -> st { sQuery = sFlagQuery st, sQueryArgs = [] }) us
   | otherwise = case parseQuery (sToday (settingsOf us)) draft of
-      Right (q, _) -> withSettings (\st -> st
-        { sQuery = simplifyQuery (And [sFlagQuery st, q]), sQueryArgs = map T.pack (words (T.unpack draft)) }) us
+      Right (q, _) ->
+        -- a date: term sets the focus period, as on the command line
+        let s = settingsOf us
+            dated = case queryDateSpan False q of
+              DateSpan Nothing Nothing -> id
+              ds -> refocus (spanFocus (sFace s) (sCommInterval s) (sToday s) (sDataRange s) ds)
+        in dated $ withSettings (\st -> st
+             { sQuery = simplifyQuery (And [sFlagQuery st, filterQuery (not . queryIsDateOrDate2) q])
+             , sQueryArgs = dropDateArgs (sToday st) (T.words draft) }) us
       Left err -> message now (errorSummary err) us
 
 -- | One footer line from a (possibly multi-line) hledger error: a leading

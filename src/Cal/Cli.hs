@@ -6,6 +6,8 @@ module Cal.Cli
   , mkSettings
   , commandLine
   , loadInputOpts
+  , spanFocus
+  , dropDateArgs
   ) where
 
 import Cal.Journal (firstSeenCommodity, journalDataRange)
@@ -21,12 +23,11 @@ import Hledger.Cli
   ( CliOpts (..), Mode, YNA (..), argsFlag, flagNone, flagReq, getHledgerCliOpts'
   , helpflags, hledgerCommandMode, inputflags, reportflags )
 import Hledger.Data.Dates (fromEFDay)
-import Hledger.Data.Period (periodAsDateSpan)
 import Hledger.Data.RawOptions
   (RawOpts, boolopt, listofstringopt, maybestringopt, maybeposintopt, setboolopt, setopt)
 import qualified Hledger.Data.Types as H
 import Hledger.Data.Valuation (ConversionOp (..), ValuationType (..))
-import Hledger.Query (filterQuery, queryIsDateOrDate2)
+import Hledger.Query (filterQuery, parseQuery, queryDateSpan, queryIsDateOrDate2)
 import Hledger.Read.InputOptions (InputOpts (..))
 import Hledger.Reports.ReportOptions (ReportOpts (..), ReportSpec (..), queryFromFlags, rawOptsToReportSpec)
 import Safe (headMay, lastMay)
@@ -79,9 +80,10 @@ mkSettings today term opts j = do
   case unsupportedFlags opts ropts of
     (flag : _) -> Left (flag ++ " has no meaning in hledger cal")
     [] -> pure ()
-  let queryArgs = map T.pack (listofstringopt "args" raw)
-      -- The focus period drives dates, so date terms are dropped; status
-      -- (-U -P -C) and -R stay, as in hledger's own reports.
+  let queryArgs = dropDateArgs today (map T.pack (listofstringopt "args" raw))
+      -- The focus period drives dates, so date terms are dropped (a date:
+      -- term sets the focus, below); status (-U -P -C) and -R stay, as in
+      -- hledger's own reports.
       noDates = filterQuery (not . queryIsDateOrDate2)
       query = noDates (_rsQuery rspec)
       flagQuery = noDates (queryFromFlags ropts)
@@ -104,7 +106,8 @@ mkSettings today term opts j = do
         H.Weeks 1 -> IWeek
         _ -> IMonth
       dataRange = journalDataRange today j
-      focus = resolveFocus face commInterval today (periodSpan dataRange (period_ ropts))
+      -- hledger's report span: -p/-b/-e and date: terms, intersected
+      focus = spanFocus face commInterval today dataRange (queryDateSpan False (_rsQuery rspec))
       -- hledger keeps only the last of -X/-V/--value; a commodity given by an
       -- earlier -X still applies to a later --value=TYPE without one.
       lastX = T.pack <$> lastMay (listofstringopt "X" raw)
@@ -183,10 +186,24 @@ loadInputOpts today opts = case (forecast_ io, reportspan_ io) of
       H.Weeks _ -> addDays 7 e
       _ -> addGregorianMonthsClip 1 e
 
--- | The explicit report period as a span. An open end is closed at the data
--- range (start of data, day after the later of today and the last posting).
-periodSpan :: (Day, Day) -> H.Period -> Maybe Span
-periodSpan (lo, hi) p = case periodAsDateSpan p of
+-- | The focus a report date span gives the face (spec §4): today when the
+-- span is open at both ends.
+spanFocus :: Face -> Interval -> Day -> (Day, Day) -> H.DateSpan -> Day
+spanFocus face ivl today range ds = resolveFocus face ivl today (explicitSpan range ds)
+
+-- | Query args without the pure date terms (@date:2026-10@), which set the
+-- focus period instead of filtering.
+dropDateArgs :: Day -> [Text] -> [Text]
+dropDateArgs today = filter (not . isDateTerm)
+  where
+    isDateTerm a = case parseQuery today a of
+      Right (q, _) -> queryIsDateOrDate2 q
+      Left _ -> False
+
+-- | An explicit report span. An open end is closed at the data range (start
+-- of data, day after the later of today and the last posting).
+explicitSpan :: (Day, Day) -> H.DateSpan -> Maybe Span
+explicitSpan (lo, hi) ds = case ds of
   H.DateSpan Nothing Nothing -> Nothing
   H.DateSpan ms me ->
     let s = maybe (min lo (maybe lo (addDays (-1) . fromEFDay) me)) fromEFDay ms
