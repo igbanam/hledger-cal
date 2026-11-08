@@ -276,3 +276,15 @@ unit_units = do
   -- the design fixture's whole-share securities
   d <- plainText . snd <$> render oct defaultCursor 140 False
   assertBool "voo in sh" (hasLine d ["VOO $", "3 sh"])
+
+-- | The columns fill the box: spread over the gaps, the slack leaves less
+-- than one cell per gap free after the widest row at every tier.
+unit_tableFills :: Assertion
+unit_tableFills = mapM_ check [200, 140, 120, 100, 80]
+  where
+    check w = do
+      (d, _) <- render oct vooCursor w False
+      let ls = [ l | l <- T.lines (plainText (vdBody d)), "│ " `T.isPrefixOf` l, not ("CURRENCIES" `T.isInfixOf` l || "SECURITIES" `T.isInfixOf` l) ]
+          free l = T.length (T.takeWhileEnd (== ' ') (T.dropEnd 1 l)) - 1
+          least = minimum (map free ls)
+      assertBool ("width " ++ show w ++ ": " ++ show least ++ " cells free after the widest row") (least < 9)

@@ -178,9 +178,16 @@ commoditiesDoc ctx m = ViewDoc
     -- the share bar only where it costs no column
     shareBar = map cId (chosen True) == map cId (chosen False)
     cols = chosen shareBar
-    widths = map colWidth cols
+    natWidths = map colWidth cols
     nCols = length cols
-    gap = max 2 (min 6 ((iw - sum widths) `div` max 1 (nCols - 1)))
+    -- the slack is spread over the gaps (at least 2 cells each) and what
+    -- is left goes to the last column, so the table fills the box
+    (gap, leftover) = case divMod (iw - sum natWidths) (max 1 (nCols - 1)) of
+      (q, r) | q >= 2 -> (q, r)
+      _ -> (2, 0)
+    widths = case reverse natWidths of
+      (lastW : rest) -> reverse ((lastW + leftover) : rest)
+      [] -> []
     hasCol i = i `elem` map cId cols
 
     cellSegs a cw ss = case a of
