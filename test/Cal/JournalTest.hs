@@ -39,3 +39,9 @@ unit_firstSeen = do j <- loadFixture edgePath; firstSeenCommodity j @?= Just "â‚
 
 unit_missingFileIsLeft :: Assertion
 unit_missingFileIsLeft = do r <- loadJournal definputopts ["test/fixtures/nope.journal"]; assertBool "Left" (isLeft r)
+
+unit_firstSeenSkipsBare :: Assertion
+unit_firstSeenSkipsBare = do
+  r <- loadJournal definputopts ["test/fixtures/bare-first.journal"]
+  j <- either assertFailure pure r
+  firstSeenCommodity j @?= Just "â‚¦"

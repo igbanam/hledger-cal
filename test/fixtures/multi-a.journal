@@ -1,0 +1,11 @@
+; First of two files loaded together (multi-file transaction identity).
+commodity ₦1,000.
+D ₦1,000.
+
+account assets:bank  ; type: C
+account income       ; type: R
+account expenses     ; type: X
+
+2026-10-03 Lunch
+    expenses:food        ₦1,000
+    assets:bank

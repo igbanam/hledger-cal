@@ -1,0 +1,8 @@
+; The first posting amount has no commodity; the base is the first real one.
+2026-10-01 Opening
+    assets:cash          10
+    equity:opening
+
+2026-10-02 Lunch
+    expenses:food        ₦1,000
+    assets:cash

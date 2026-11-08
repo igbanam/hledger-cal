@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Cal.RegisterTest where
 
+import Cal.Model.Common (Activity (..), Env, Kpis (..), kpisFor)
 import Cal.Model.Register
+import Cal.Model.Shared (DayDetail (..), TxnBlock (..), dayDetail)
 import Cal.Types
 import Cal.Valuation (baseQty)
 import Data.Time.Calendar (fromGregorian)
@@ -28,3 +30,23 @@ unit_empty :: Assertion
 unit_empty = do
   e <- envFor ["-M", "-p", "2026-10"]
   map rgDate (registerRows e octSpan (d 2026 10 3)) @?= []
+
+-- | Two files, each with a transaction #1: identity must survive the merge.
+multiEnv :: IO Env
+multiEnv = envFor ["-M", "-p", "2026-10", "-f", "test/fixtures/multi-a.journal", "-f", "test/fixtures/multi-b.journal"]
+
+unit_multiFileActivity :: Assertion
+unit_multiFileActivity = do
+  e <- multiEnv
+  aTxns (kActivity (kpisFor e IMonth octSpan)) @?= 3
+
+unit_multiFileTxnBlocks :: Assertion
+unit_multiFileTxnBlocks = do
+  e <- multiEnv
+  let dd = dayDetail e octSpan (d 2026 10 3)
+  (map tbDescription (ddTxns dd), map (length . tbRows) (ddTxns dd)) @?= (["Lunch", "Lunch"], [1, 1])
+
+unit_multiFileRegister :: Assertion
+unit_multiFileRegister = do
+  e <- multiEnv
+  map rgDescription (registerRows e octSpan (d 2026 10 3)) @?= [Just "Lunch", Just "Lunch"]

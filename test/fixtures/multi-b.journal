@@ -1,0 +1,11 @@
+; Second of two files loaded together (multi-file transaction identity).
+account assets:bank  ; type: C
+account expenses     ; type: X
+
+2026-10-03 Lunch
+    expenses:food        ₦2,000
+    assets:bank
+
+2026-10-05 Taxi
+    expenses:transport   ₦500
+    assets:bank
