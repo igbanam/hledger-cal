@@ -215,7 +215,14 @@ move :: Int -> Int -> UiState -> UiState
 move dx dy us = case sFace s of
   -- the ≥ 140 grid has a quarter per row (design F2); narrower, a month per row
   FaceYear
-    | tierFor (usWidth us) == Just TierFull -> refocus (months (dx + 3 * dy) focus) us
+    | tierFor (usWidth us) == Just TierFull ->
+        -- a step up or down that would leave the data range does nothing;
+        -- clamping it would move the cursor diagonally
+        let target = months (dx + 3 * dy) focus
+            (lo, hi) = sDataRange s
+            firstOf d = let (y, m, _) = toGregorian d in fromGregorian y m 1
+            inside = firstOf target >= firstOf lo && firstOf target <= hi
+        in if dy /= 0 && not inside then us else refocus target us
     | otherwise -> refocus (months (3 * dx + dy) focus) us
   FaceQuarter -> refocus (months (3 * (dx + 2 * dy)) focus) us
   FaceMonth -> refocus (addDays (fromIntegral (dx + 7 * dy)) focus) us

@@ -236,6 +236,19 @@ unit_yearGridMoves = do
   map focus [run rows [CmdMove 0 (-1)], run rows [CmdMove (-1) 0]] @?= [d 2026 10 6, d 2026 8 6]
   usWidth y @?= 0
 
+-- | In the ≥ 140 Year grid, ↑/↓ that would leave the data range does
+-- nothing (it used to clamp, moving the cursor diagonally).
+unit_yearGridEdges :: IO ()
+unit_yearGridEdges = do
+  y <- mk ["-Y"]
+  let at day = y { usWidth = 140, usEnv = (usEnv y) { envSettings = (envSettings (usEnv y)) { sFocus = day } } }
+      up s0 = focus (run s0 [CmdMove 0 (-1)])
+      down s0 = focus (run s0 [CmdMove 0 1])
+  up (at (d 2026 1 15)) @?= d 2026 1 15
+  up (at (d 2026 2 10)) @?= d 2026 2 10
+  down (at (d 2026 9 6)) @?= d 2026 9 6
+  down (at (d 2026 8 6)) @?= d 2026 11 6
+
 -- | The viewport keeps the whole cursor box in view: the cursor row and
 -- the lines around it that hold the cursor border.
 unit_cursorSpan :: IO ()
