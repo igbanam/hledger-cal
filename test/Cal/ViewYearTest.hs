@@ -133,11 +133,20 @@ unit_gridLayout = do
       novBorder = [ x | x@(r, c, _) <- roleCells RRule "─│┌┐└┘" b, onEdge r c ]
   length novBorder @?= 2 * (nc1 - nc0 + 1) + 2 * (n1 - n0 - 1)
   assertBool "Dec dashed border" (length (roleCells RRule "┄┆" b) > 10)
+  -- the dashed card's corners are dots, not solid corners
+  length (roleCells RRule "·" b) @?= 4
+  -- one blank row between quarter rows, none after the last
+  let bottoms = [ i | (i, l) <- zip [0 :: Int ..] ls, "└" `T.isPrefixOf` l ]
+  length bottoms @?= 4
+  [ T.null (T.strip (ls !! (i + 1))) | i <- init bottoms ] @?= [True, True, True]
+  length ls @?= last bottoms + 1
 
 unit_gridFutureAscii :: Assertion
 unit_gridFutureAscii = do
   b <- yearBody ["-Y", "--ascii"] 140 False
   assertBool "ASCII dashed border" (length (roleCells RRule ":" b) >= 2)
+  length (roleCells RRule "." b) @?= 2
+  length (roleCells RRule "'" b) @?= 2
   assertBool "ASCII borders" (not (T.any (`elem` ("─│┌┐└┘┄┆━" :: String)) (plainText b)))
 
 -- | The cursor is the month card's border, never a highlighted label (S4);

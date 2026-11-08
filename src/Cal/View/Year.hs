@@ -115,13 +115,14 @@ yearDoc ctx m = ViewDoc
       ++ [ Seg dim (gSep g <> "symbols = currencies used") ]
 
 -- | The ≥ 140 body (design F2): per quarter, a row of a summary box and
--- three month cards, all as tall as the tallest; and the line of the cursor
+-- three month cards, all as tall as the tallest, with a blank row between
+-- quarters; and the line of the cursor
 -- card's name. The cursor card's border is the cursor (S4), the only
 -- purple; otherwise an overspent month's border takes the expense tint. The
 -- open month is marked by its "to 6th" chip and the "…" after its net, not
 -- its border; a future month's border is dashed.
 yearGrid :: RenderCtx -> YearModel -> Maybe Day -> (Block, Maybe Int)
-yearGrid ctx m cursor = (vcat rowsB, cursorRow)
+yearGrid ctx m cursor = (vcat (intersperse (Block 0 [Line []]) rowsB), cursorRow)
   where
     g = rcGlyphs ctx
     f = rcFmt ctx
@@ -139,7 +140,7 @@ yearGrid ctx m cursor = (vcat rowsB, cursorRow)
     rowsB = map quarterRow (ymGroups m)
     heights = map (length . bLines) rowsB
     cursorRow = case [ i | (i, q) <- zip [0 :: Int ..] (ymGroups m), any isCursor (qgMonths q) ] of
-      (i : _) -> Just (sum (take i heights) + 1)
+      (i : _) -> Just (sum (take i heights) + i + 1)
       [] -> Nothing
 
     -- content @iw@ wide in a box @n@ wide, one cell of padding each side,
@@ -164,7 +165,11 @@ yearGrid ctx m cursor = (vcat rowsB, cursorRow)
       | mrOverspent r = st RExp
       | otherwise = st RRule
     ascii = sGlyphSet (rcSettings ctx) == GlyphsAscii
-    dashed = (gBox g) { bxH = if ascii then '-' else '┄', bxV = if ascii then ':' else '┆' }
+    -- dashed sides; the corners are dots (there are no dashed corner
+    -- glyphs), so no solid corner breaks the dashed line
+    dashed
+      | ascii = (gBox g) { bxH = '-', bxV = ':', bxTL = '.', bxTR = '.', bxBL = '\'', bxBR = '\'' }
+      | otherwise = (gBox g) { bxH = '┄', bxV = '┆', bxTL = '·', bxTR = '·', bxBL = '·', bxBR = '·' }
     borderGlyphs r
       | mrStatus r == Future = g { gBox = dashed }
       | otherwise = g
