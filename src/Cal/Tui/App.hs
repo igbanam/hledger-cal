@@ -6,6 +6,7 @@ module Cal.Tui.App
   , calAttrMap
   , attrMapFor
   , styleAttr
+  , bgAttr
   , clampRegisterScroll
   ) where
 
@@ -62,16 +63,22 @@ tints = [100, 60, 40, 25]
 roleName :: Role -> String
 roleName r = map toLower (drop 1 (show r))
 
--- | @role.<role>.<tint>[.bold][.inverse]@
+-- | @role.<role>.<tint>[.bold][.inverse]@; the background is a separate
+-- attribute ('bgAttr').
 styleAttr :: Style -> AttrName
 styleAttr s = mconcat (map attrName parts)
   where
     parts = ["role", roleName (stRole s), show (stTint s)]
       ++ ["bold" | stBold s] ++ ["inverse" | stInverse s]
 
+-- | @bg.<role>.<tint>@: only a background colour, laid under a style's
+-- attribute with 'withDefAttr'.
+bgAttr :: Role -> Int -> AttrName
+bgAttr r t = mconcat (map attrName ["bg", roleName r, show t])
+
 allStyles :: [Style]
 allStyles =
-  [ Style r t b i | r <- [minBound .. maxBound], t <- tints, b <- [False, True], i <- [False, True] ]
+  [ Style r t b i Nothing | r <- [minBound .. maxBound], t <- tints, b <- [False, True], i <- [False, True] ]
 
 rgb :: RGB -> Vty.Color
 rgb (r, g, b) = Vty.rgbColor (w r) (w g) (w b)
@@ -80,7 +87,10 @@ rgb (r, g, b) = Vty.rgbColor (w r) (w g) (w b)
 styleVtyAttr :: ColorMode -> Style -> Vty.Attr
 styleVtyAttr cm s = withBold (colours Vty.defAttr)
   where
-    withBold a = if stBold s then a `Vty.withStyle` Vty.bold else a
+    -- the cursor border is bold where there is no colour (spec §10.2)
+    withBold a
+      | stBold s || (cm == ColorNone && stRole s == RCursorBorder) = a `Vty.withStyle` Vty.bold
+      | otherwise = a
     c = tintRGB (stTint s) (roleRGB (stRole s))
     colours a
       | cm == ColorNone = if stInverse s then a `Vty.withStyle` Vty.reverseVideo else a
@@ -88,9 +98,17 @@ styleVtyAttr cm s = withBold (colours Vty.defAttr)
       | stRole s == RPanel = a `Vty.withForeColor` rgb (roleRGB RText) `Vty.withBackColor` rgb c
       | otherwise = a `Vty.withForeColor` rgb c
 
--- | Every role x tint x bold x inverse; no colours at all for 'ColorNone'.
+bgVtyAttr :: ColorMode -> Role -> Int -> Vty.Attr
+bgVtyAttr cm r t
+  | cm == ColorNone = Vty.defAttr
+  | otherwise = Vty.defAttr `Vty.withBackColor` rgb (tintRGB t (roleRGB r))
+
+-- | Every role x tint x bold x inverse, and every role x tint as a
+-- background; no colours at all for 'ColorNone'.
 attrMapFor :: ColorMode -> AttrMap
-attrMapFor cm = attrMap Vty.defAttr [ (styleAttr s, styleVtyAttr cm s) | s <- allStyles ]
+attrMapFor cm = attrMap Vty.defAttr $
+  [ (styleAttr s, styleVtyAttr cm s) | s <- allStyles ]
+  ++ [ (bgAttr r t, bgVtyAttr cm r t) | r <- [minBound .. maxBound], t <- tints ]
 
 calAttrMap :: AttrMap
 calAttrMap = attrMapFor ColorTrue
@@ -98,9 +116,15 @@ calAttrMap = attrMapFor ColorTrue
 -- * Widgets
 
 lineWidget :: Line -> Widget Name
-lineWidget (Line ss) = case [ withAttr (styleAttr s) (txt t) | Seg s t <- ss, not (T.null t) ] of
+lineWidget (Line ss) = case [ withBg s (withAttr (styleAttr s) (txt t)) | Seg s t <- ss, not (T.null t) ] of
   [] -> txt " "
   ws -> hBox ws
+
+-- | Lay the style's background (if any) under it; reverse video has its own.
+withBg :: Style -> Widget Name -> Widget Name
+withBg s w = case stBg s of
+  Just (r, t) | not (stInverse s) -> withDefAttr (bgAttr r t) w
+  _ -> w
 
 blockWidget :: Block -> Widget Name
 blockWidget b = vBox (map lineWidget (bLines b))

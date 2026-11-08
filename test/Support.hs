@@ -6,7 +6,13 @@ module Support
   , testTerminal
   , settingsFor
   , envFor
+  , cellStyles
+  , cursorCells
   ) where
+
+import qualified Data.Text as T
+import Cal.Doc (Block (..), Line (..), Seg (..), Style (..), textW)
+import Cal.Theme (Role (RCursorBorder))
 
 import Cal.Cli (loadInputOpts, mkSettings, parseCli)
 import Cal.Journal (loadJournal)
@@ -47,3 +53,19 @@ settingsFor args0 = do
 
 envFor :: [String] -> IO Env
 envFor args = uncurry mkEnv <$> settingsFor args
+
+-- | Every cell of a block with its style, line by line (a wide character
+-- takes one entry).
+cellStyles :: Block -> [[(Char, Style)]]
+cellStyles b = [ concat [ [ (c, s) | c <- T.unpack t ] | Seg s t <- ss ] | Line ss <- bLines b ]
+
+-- | (line, column, character) of every cell in the cursor-border role.
+cursorCells :: Block -> [(Int, Int, Char)]
+cursorCells b =
+  [ (i, col, c)
+  | (i, Line ss) <- zip [0 ..] (bLines b)
+  , (col, c, s) <- cols 0 [ (c, s) | Seg s t <- ss, c <- T.unpack t ]
+  , stRole s == RCursorBorder ]
+  where
+    cols _ [] = []
+    cols n ((c, s) : rest) = (n, c, s) : cols (n + textW (T.singleton c)) rest

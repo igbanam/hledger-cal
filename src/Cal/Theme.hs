@@ -11,7 +11,9 @@ import Data.Word (Word8)
 
 import Cal.Types (ColorMode (..))
 
-data Role = RText | RDim | RFaded | RInc | RExp | RCursor | RWarn | RRule | RPanel
+-- | 'RCursorBorder' is the border of the box or grid cell under the
+-- cursor: the cursor colour, and bold where there is no colour.
+data Role = RText | RDim | RFaded | RInc | RExp | RCursor | RWarn | RRule | RPanel | RCursorBorder
   deriving (Eq, Ord, Show, Enum, Bounded)
 
 type RGB = (Word8, Word8, Word8)
@@ -30,6 +32,7 @@ roleRGB r = case r of
   RInc -> (0x6c, 0xb6, 0xff)
   RExp -> (0xF4, 0x70, 0x67)
   RCursor -> (0xB0, 0x83, 0xF0)
+  RCursorBorder -> roleRGB RCursor
   RWarn -> (0xDA, 0xAA, 0x3F)
 
 -- | @tintRGB p c@: @p@ percent of @c@ mixed into the background.

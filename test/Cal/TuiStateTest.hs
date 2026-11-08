@@ -7,7 +7,7 @@ import Cal.Journal (journalDataRange)
 import Cal.Model.Common (Env (..))
 import Cal.Model.Commodities (CommodityRow (..), CommoditiesModel (..), commoditiesModel)
 import Cal.Theme (Role (..))
-import Cal.Tui.App (blockWidget, calAttrMap, clampRegisterScroll, styleAttr)
+import Cal.Tui.App (attrMapFor, bgAttr, blockWidget, calAttrMap, clampRegisterScroll, styleAttr)
 import Cal.Tui.State
 import Cal.Types
 import Data.Maybe (isJust)
@@ -199,3 +199,28 @@ unit_clampRegisterScroll =
   -- height 10 shows 7 rows; 12 rows can scroll by at most 5
   (clampRegisterScroll 10 12 1000000, clampRegisterScroll 10 12 3, clampRegisterScroll 10 4 9, clampRegisterScroll 10 12 (-2))
     @?= (5, 3, 0, 0)
+
+-- | Every role (the cursor border included) has an attribute at every tint.
+unit_attrMapEveryRole :: IO ()
+unit_attrMapEveryRole =
+  mapM_ (\r -> mapM_ (\t -> do
+      let a = attrMapLookup (styleAttr (Doc.tinted t (Doc.st r))) calAttrMap
+      assertBool (show (r, t)) (a /= Vty.defAttr)
+      assertBool (show (r, t) ++ " bg") (attrMapLookup (bgAttr r t) calAttrMap /= Vty.defAttr))
+    [100, 60, 40, 25]) [minBound .. maxBound :: Role]
+
+-- | A style with a background renders with both colours.
+unit_attrBackground :: IO ()
+unit_attrBackground = do
+  let style = Doc.onBg RExp 100 (Doc.st RInc)
+      pic = renderWidget (Just calAttrMap) [blockWidget (Doc.str style "x")] (10, 1)
+  case concatMap (attrsOf "x") (Vty.picLayers pic) of
+    [a] -> (Vty.attrForeColor a, Vty.attrBackColor a)
+      @?= (Vty.attrForeColor (attrMapLookup (styleAttr (Doc.st RInc)) calAttrMap), Vty.SetTo (Vty.rgbColor (244 :: Int) 112 103))
+    as -> assertFailure (show as)
+
+-- | Without colour the cursor border is bold, and nothing else changes.
+unit_cursorBorderNoColour :: IO ()
+unit_cursorBorderNoColour = do
+  let a = attrMapLookup (styleAttr Doc.cursorBorder) (attrMapFor ColorNone)
+  (Vty.attrStyle a, Vty.attrForeColor a) @?= (Vty.SetTo Vty.bold, Vty.Default)

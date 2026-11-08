@@ -1,8 +1,8 @@
 -- | A tiny styled-text block layout language and its renderers. Pure.
 module Cal.Doc
-  ( Style (..), st, bold, inverse, tinted
+  ( Style (..), st, bold, inverse, tinted, onBg, cursorBorder
   , Seg (..), Line (..), Block (..)
-  , textW, str, line, emptyB, hcat, vcat, padTo, alignR, boxed
+  , textW, str, line, emptyB, hcat, vcat, padTo, alignR, boxed, boxedIn, cursorRect
   , truncEnd, truncAccount, wrapFig, plainText, renderAnsi
   ) where
 
@@ -17,11 +17,15 @@ import Cal.Glyphs (BoxChars (..), Glyphs (..))
 import Cal.Theme
 import Cal.Types (ColorMode (..))
 
-data Style = Style { stRole :: !Role, stTint :: !Int, stBold :: !Bool, stInverse :: !Bool }
+-- | A foreground role at a tint, bold, reverse video, and an optional
+-- background role at a tint (ignored under reverse video).
+data Style = Style
+  { stRole :: !Role, stTint :: !Int, stBold :: !Bool, stInverse :: !Bool
+  , stBg :: !(Maybe (Role, Int)) }
   deriving (Eq, Show)
 
 st :: Role -> Style
-st r = Style r 100 False False
+st r = Style r 100 False False Nothing
 
 bold, inverse :: Style -> Style
 bold s = s { stBold = True }
@@ -29,6 +33,15 @@ inverse s = s { stInverse = True }
 
 tinted :: Int -> Style -> Style
 tinted p s = s { stTint = p }
+
+-- | Paint the cell background with a role at a tint.
+onBg :: Role -> Int -> Style -> Style
+onBg r p s = s { stBg = Just (r, p) }
+
+-- | The border of the box or grid cell under the cursor (spec §10.2):
+-- the accent tint, and bold where there is no colour.
+cursorBorder :: Style
+cursorBorder = st RCursorBorder
 
 data Seg = Seg !Style !Text deriving (Eq, Show)
 
@@ -114,13 +127,18 @@ alignR n b = Block n (map f (bLines b))
       else if w == n then l
       else Line (Seg (st RText) (T.replicate (n - w) " ") : ss)
 
+-- | @b@ in a box @n@ columns wide, with an optional title in the top border.
 boxed :: Glyphs -> Maybe Text -> Int -> Block -> Block
-boxed g title n b = Block n (top : map side (bLines (padTo inner b)) ++ [bottom])
+boxed = boxedIn (st RRule)
+
+-- | 'boxed' with the border in the given style ('cursorBorder' for the box
+-- under the cursor).
+boxedIn :: Style -> Glyphs -> Maybe Text -> Int -> Block -> Block
+boxedIn rs g title n b = Block n (top : map side (bLines (padTo inner b)) ++ [bottom])
   where
     bx = gBox g
     inner = max 0 (n - 2)
     rule k = T.replicate k (T.singleton (bxH bx))
-    rs = st RRule
     top = Line $ case title of
       Nothing -> [Seg rs (T.singleton (bxTL bx) <> rule inner <> T.singleton (bxTR bx))]
       Just t ->
@@ -130,6 +148,35 @@ boxed g title n b = Block n (top : map side (bLines (padTo inner b)) ++ [bottom]
            , Seg rs (rule fill <> T.singleton (bxTR bx)) ]
     side (Line ss) = Line (Seg rs (T.singleton (bxV bx)) : ss ++ [Seg rs (T.singleton (bxV bx))])
     bottom = Line [Seg rs (T.singleton (bxBL bx) <> rule inner <> T.singleton (bxBR bx))]
+
+-- | @cursorRect (r0, c0) (r1, c1) b@: the grid lines on the perimeter of
+-- the rectangle from line @r0@, column @c0@ to line @r1@, column @c1@
+-- (inclusive, 0-based) take the 'cursorBorder' style. Only cells drawn in
+-- the rule role change, so text on the perimeter keeps its style and the
+-- block keeps its size. Used for a grid cell whose borders are shared
+-- with its neighbours.
+cursorRect :: (Int, Int) -> (Int, Int) -> Block -> Block
+cursorRect (r0, c0) (r1, c1) b = b { bLines = zipWith restyle [0 ..] (bLines b) }
+  where
+    restyle i l@(Line ss)
+      | i < r0 || i > r1 = l
+      | i == r0 || i == r1 = Line (go 0 (\c -> c >= c0 && c <= c1) ss)
+      | otherwise = Line (go 0 (\c -> c == c0 || c == c1) ss)
+    go _ _ [] = []
+    go col on (Seg s t : rest)
+      | stRole s /= RRule || not (any on [col .. col + w - 1]) = Seg s t : go (col + w) on rest
+      | otherwise = runs col (T.unpack t) ++ go (col + w) on rest
+      where
+        w = textW t
+        runs _ [] = []
+        runs c cs@(_ : _) =
+          let flag = on c
+              (run, more) = spanW flag c cs
+          in Seg (if flag then cursorBorder else s) (T.pack run) : runs (c + textW (T.pack run)) more
+        spanW _ _ [] = ([], [])
+        spanW flag c (x : xs)
+          | on c == flag = let (a, z) = spanW flag (c + textW (T.singleton x)) xs in (x : a, z)
+          | otherwise = ([], x : xs)
 
 truncEnd :: Glyphs -> Int -> Text -> Text
 truncEnd g n t
@@ -187,12 +234,14 @@ renderAnsi cm b = T.intercalate "\n" (map renderLine (bLines b))
     renderLine (Line ss) = T.concat (map renderSeg ss)
     renderSeg (Seg s t)
       | T.null t = ""
-      | T.all (== ' ') t && not (stInverse s) = t
+      | T.all (== ' ') t && not (stInverse s) && stBg s == Nothing = t
       | otherwise = T.concat [boldP, colour, t, "\ESC[0m"]
       where
         boldP = if stBold s then "\ESC[1m" else ""
         c = tintRGB (stTint s) (roleRGB (stRole s))
         colour
           | stInverse s = ansiBg cm (roleRGB (stRole s)) <> ansiFg cm backgroundRGB
+          | otherwise = fg <> maybe "" (\(r, p) -> ansiBg cm (tintRGB p (roleRGB r))) (stBg s)
+        fg
           | stTint s == 100 = ansiFg cm (roleRGB (stRole s))
           | otherwise = ansiFg cm c
