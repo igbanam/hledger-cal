@@ -142,3 +142,14 @@ unit_mixBar = do
   let mx = Mix [("NGN", 0.8), ("USD", 0.2)]
   [ (stTint s, t) | Seg s t <- mixBar c KExpense 10 mx ] @?= [(100, "━━━━━━━━"), (60, "━━")]
   segText (mixBar n KExpense 10 mx) @?= "━━━━━━━━══"
+
+-- | A card that asks for a minimum width gets it; the others share the rest.
+unit_cardRowMin :: Assertion
+unit_cardRowMin = do
+  c <- ctxWith [] 140
+  let probe cw = str (st RText) (T.replicate cw "x")
+      widthsOf b = case T.lines (plainText b) of
+        (_ : l : _) -> map T.length (T.splitOn " │ " (T.drop 2 (T.dropEnd 2 l)))
+        _ -> []
+  widthsOf (cardRowMin c [(0, probe), (26, probe), (0, probe), (0, probe), (0, probe)]) @?= [25, 26, 25, 24, 24]
+  widthsOf (cardRowMin c (map ((,) 0) (replicate 5 probe))) @?= widthsOf (cardRow c (replicate 5 probe))

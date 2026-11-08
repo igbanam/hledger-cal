@@ -3,7 +3,7 @@
 module Cal.View.Chrome
   ( topChrome
   , card, sub, incomeCard, expensesCard, netCard, fxCard, activityCard
-  , cardRow, mixBlock, footerBlock
+  , cardRow, cardRowMin, mixBlock, footerBlock
   , colourOn, barCells, thinBar, trackSegs, mixBar, mixLegend, pairedBar
   , dim, plain, spaces, segsW, signStyle, acctSegs
   , colW, acctNeed, rowValue
@@ -229,8 +229,15 @@ activityCard ctx w k = card ctx w "ACTIVITY" (Seg (bold plain) (count n "txn" "t
 -- cell of padding inside every card. At 'Tier80' they wrap onto two rows
 -- of the same strip.
 cardRow :: RenderCtx -> [Int -> Block] -> Block
-cardRow _ [] = emptyB
-cardRow ctx fs = Block w (ruleLine (bxTL bx) (bxTR bx) [] (concatMap cutsOf (take 1 built))
+cardRow ctx = cardRowMin ctx . map ((,) 0)
+
+-- | 'cardRow' where each card may ask for a minimum width (0: none). A card
+-- whose minimum is above the even share gets it and the others share the
+-- rest evenly; when they can't (the rest is below one of their minimums),
+-- every card gets the even share.
+cardRowMin :: RenderCtx -> [(Int, Int -> Block)] -> Block
+cardRowMin _ [] = emptyB
+cardRowMin ctx fs = Block w (ruleLine (bxTL bx) (bxTR bx) [] (concatMap cutsOf (take 1 built))
   : concat (zipWith between built (map Just (drop 1 built) ++ [Nothing])))
   where
     w = rcWidth ctx
@@ -256,14 +263,31 @@ cardRow ctx fs = Block w (ruleLine (bxTL bx) (bxTR bx) [] (concatMap cutsOf (tak
           _ -> bxH bx
     row cs =
       let k = length cs
-          (q, r) = (w - 4 - 3 * (k - 1)) `divMod` k
-          ws = [q + (if i < r then 1 else 0) | i <- [0 .. k - 1]]
-          blocks = zipWith (\c cw -> padTo cw (c cw)) cs ws
+          ws = cardWidths (w - 4 - 3 * (k - 1)) (map fst cs)
+          blocks = zipWith (\(_, c) cw -> padTo cw (c cw)) cs ws
           h = maximum (map (length . bLines) blocks)
           vr = T.singleton (bxV bx)
           edge t = Block (textW t) (replicate h (Line [Seg rs t]))
           sep = edge (" " <> vr <> " ")
       in (ws, hcat 0 ([edge (vr <> " ")] ++ intersperse sep blocks ++ [edge (" " <> vr)]))
+
+-- | Card widths summing to @total@: an even split (the first cards take the
+-- odd cells), except that a card whose minimum is above the even share gets
+-- its minimum and the others share the rest.
+cardWidths :: Int -> [Int] -> [Int]
+cardWidths total mins
+  | nOther == 0 || nOther == k || any (> q) [ m | (m, False) <- zip mins big ] = spread total k
+  | otherwise = go mins big (spread (total - fixed) nOther)
+  where
+    k = length mins
+    big = [ m > total `div` k | m <- mins ]
+    fixed = sum [ m | (m, True) <- zip mins big ]
+    nOther = length (filter not big)
+    q = (total - fixed) `div` nOther
+    spread t n = let (a, r) = t `divMod` n in [ a + (if i < r then 1 else 0) | i <- [0 .. n - 1] ]
+    go (m : ms) (True : bs) os = m : go ms bs os
+    go (_ : ms) (False : bs) (o : os) = o : go ms bs os
+    go _ _ _ = []
 
 -- * Thin bars (spec §10.2, design S2)
 
