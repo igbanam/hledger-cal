@@ -120,3 +120,13 @@ unit_bareCuts = do
   bareCuts "│ Nov  ▀▀▀   +2,090,000 … │" @?= []
   bareCuts "│ Dec  · no postings yet (forecast Househo… $1,200.00) │" @?= []
   bareCuts "│ Nov to 6th   +2,090,000 ... │" @?= []
+
+-- | Valued in a currency the journal gives no style, each KPI figure fits
+-- on one line (it is rounded, not printed at full precision).
+unit_unstyledBaseKpis :: Assertion
+unit_unstyledBaseKpis = do
+  e <- envFor ["-M", "-p", "2026-10", "-X", "CHF", "-f", "test/fixtures/undeclared.journal", "--color=never"]
+  out <- either (assertFailure . T.unpack) pure (renderPrint e 140)
+  let kpiRow = [ l | l <- T.lines out, "+263.16" `T.isInfixOf` l, "GBP 4.50" `T.isInfixOf` l ]
+  assertBool ("no single-line KPI row in:\n" ++ T.unpack out) (not (null kpiRow))
+  assertBool "unrounded figure" (not ("263.157" `T.isInfixOf` out))

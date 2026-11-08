@@ -15,12 +15,13 @@ import qualified Data.Text as T
 import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Hledger
-  ( Amount (..), AmountFormat (..), AmountPrecision (..), AmountStyle (..), Journal, MixedAmount, Quantity
-  , Side (..), amountStripCost, amountsRaw, defaultFmt, journalCommodityStyles, mixed, nullamt
+  ( Amount (..), AmountFormat (..), AmountPrecision (..), AmountStyle (..), DigitGroupStyle (..), Journal, MixedAmount, Quantity
+  , Side (..), amountStripCost, amountstyle, amountsRaw, defaultFmt, journalCommodityStyles, mixed, nullamt
   , showAmountB, wbToText )
 import Numeric (showFFloat)
 
-import Cal.Currency (symbolOf)
+import Cal.Currency (currencyCode, symbolOf)
+import Cal.Currency.Table (iso4217MinorUnits)
 import Cal.Glyphs (Glyphs (..))
 import Cal.Types (CommoditySymbol, Valuation (..))
 
@@ -30,11 +31,29 @@ data Fmt = Fmt
   , fGlyphs :: Glyphs }
 
 mkFmt :: Journal -> Valuation -> Glyphs -> Fmt
-mkFmt j v g = Fmt (journalCommodityStyles j) base g
+mkFmt j v g = Fmt styles base g
   where
+    journalStyles = journalCommodityStyles j
     base = case v of
       Native -> Nothing
       ValuedIn c -> Just c
+    -- a base the journal gives no style (seen only in a P directive or a
+    -- cost) would print valued figures at full precision
+    styles = case base of
+      Just c | c `M.notMember` journalStyles -> M.insert c (unstyledBaseStyle c) journalStyles
+      _ -> journalStyles
+
+-- | The style for a valuation base the journal doesn't style: grouped, with
+-- 2 decimals, or none for a currency whose ISO 4217 minor unit is 0.
+unstyledBaseStyle :: CommoditySymbol -> AmountStyle
+unstyledBaseStyle c = amountstyle
+  { ascommodityside = R, ascommodityspaced = True
+  , asdigitgroups = Just (DigitGroups ',' [3]), asdecimalmark = Just '.'
+  , asprecision = Precision places }
+  where
+    places = case currencyCode c >>= (`M.lookup` iso4217MinorUnits) of
+      Just 0 -> 0
+      _ -> 2
 
 -- | Cost-free components, summed per commodity, zeros dropped, in journal style.
 components :: Fmt -> MixedAmount -> [Amount]

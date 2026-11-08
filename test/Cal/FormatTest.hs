@@ -82,3 +82,17 @@ unit_absMixedSigns = do
   f <- fmtU
   (fmtAbs f (ngn (-5000) <> btc 0.01), fmtAbs f (ngn (-5000) <> btc (-0.01)))
     @?= ("\x2212\&5,000 + 0.01 BTC", "5,000 + 0.01 BTC")
+
+-- | A base the journal gives no display style (CHF appears only in a P
+-- directive) is shown with 2 decimals, or 0 for a zero-minor-unit currency;
+-- other commodities keep their own styles.
+unit_unstyledBase :: Assertion
+unit_unstyledBase = do
+  j <- loadFixture "test/fixtures/undeclared.journal"
+  let chf = mkFmt j (ValuedIn "CHF") (glyphsFor GlyphsUtf8)
+      krw = mkFmt j (ValuedIn "KRW") (glyphsFor GlyphsUtf8)
+  ( fmtSigned chf (one "CHF" (500000 / 1900))
+    , fmtSigned chf (one "CHF" (-1234567.891) <> ngn 5)
+    , fmtQty chf 0.5
+    , fmtSigned krw (one "KRW" 12345.6) )
+    @?= ("+263.16", "−1,234,567.89 + ₦5", "+0.50", "+12,346")
