@@ -47,7 +47,7 @@ unit_activity = do
 
 unit_cursorClamp :: Assertion
 unit_cursorClamp = do
-  w <- weekOf ["-W", "-p", "2026-10-30"] (Cursor 9 0)
+  w <- weekOf ["-W", "-p", "2026-10-30"] (Cursor 9 Nothing)
   wkCursor w @?= (d 2026 10 30, 0)
 
 unit_w53 :: Assertion

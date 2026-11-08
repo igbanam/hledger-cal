@@ -21,7 +21,7 @@ oct = ["--commodities", "-p", "2026-10"]
 edge = oct ++ ["-f", edgePath]
 
 vooCursor :: Cursor
-vooCursor = Cursor 0 6
+vooCursor = Cursor 0 (Just 6)
 
 render :: [String] -> Cursor -> Int -> Bool -> IO (ViewDoc, Block)
 render args cur w interactive = do
@@ -59,9 +59,11 @@ unit_widths = mapM_ check (variants ++ extra)
       assertBool (name ++ " has lines wider than " ++ show w ++ ": " ++ show wide) (null wide)
       assertBool (name ++ " reports width " ++ show (bWidth b)) (bWidth b <= w)
 
--- | Text of the boxes with borders and wrapping removed.
+-- | Text of the boxes with borders and wrapping removed; where two boxes sit
+-- side by side, only the right one (the explainer) is kept.
 unwrapped :: Text -> Text
-unwrapped t = T.unwords (concatMap (T.words . T.filter (`notElem` ("│┌┐└┘─" :: String))) (T.lines t))
+unwrapped t = T.unwords (concatMap (T.words . T.filter (`notElem` ("│┌┐└┘─" :: String)) . rightBox) (T.lines t))
+  where rightBox l = last (T.splitOn "│  │" l)
 
 hasLine :: Text -> [Text] -> Bool
 hasLine t frags = any (\l -> all (`T.isInfixOf` l) frags) (T.lines t)

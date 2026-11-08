@@ -397,3 +397,14 @@ unit_panelPlacement = do
   assertEqual "the body starts one blank row under the top" (pTall - 2 - length bodyLs) topN
   (pShort, _) <- check 40
   assertBool "the short screen scrolls the body" (pShort - 2 - topN < length bodyLs)
+
+-- The Commodities cursor opens on the first non-base row (review M8); moving
+-- and "value in this" start from there.
+unit_commInitialCursor :: IO ()
+unit_commInitialCursor = do
+  c <- mk ["--commodities", "-p", "2026-10"]
+  let sel u = let m = commoditiesModel (usEnv u) (usCursor u) in fmap crCommodity (take 1 (drop (cmSelected m) (cmCurrencies m ++ cmSecurities m)))
+  sel c @?= ["$"]
+  sel (run c [CmdMove 0 1]) @?= ["Dh"]
+  sel (run c [CmdMove 0 (-1)]) @?= ["\8358"]
+  sValuation (st (run c [CmdEnter])) @?= ValuedIn "$"

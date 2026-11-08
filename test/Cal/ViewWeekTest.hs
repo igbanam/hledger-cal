@@ -204,7 +204,7 @@ unit_stretch = do
 unit_selection :: Assertion
 unit_selection = do
   forM_ [0, 5, 11] $ \i -> do
-    (d, _) <- weekRenderAt (Cursor i 0) busy 140 True
+    (d, _) <- weekRenderAt (Cursor i Nothing) busy 140 True
     let ls = T.lines (plainText (vdBody d))
         name = "Errand " <> T.pack (show (i + 1))
         styles = cellStyles (vdBody d)

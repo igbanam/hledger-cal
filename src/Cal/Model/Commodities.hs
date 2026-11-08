@@ -14,7 +14,7 @@ import Cal.Period (faceSpan, intervalSpan, lastDay, prevSpan, spanStatus)
 import Cal.Prices (Prices (..), RateInfo (..), RateSource (..), rateInfo, rateOn, staleAge)
 import Cal.Types
 import Cal.Valuation (baseQty, foreignPart)
-import Data.List (nub, sortBy)
+import Data.List (findIndex, nub, sortBy)
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe, isJust, isNothing, listToMaybe, mapMaybe)
 import Data.Ord (Down (..), comparing)
@@ -152,7 +152,11 @@ commoditiesModel env cursor = CommoditiesModel
     totalGain = case mapMaybe crGain rows of
       [] -> Nothing
       gs -> Just (sum gs)
-    selected = max 0 (min (length allRows - 1) (cuCommodity cursor))
+    -- an unmoved cursor selects the first non-base row, so the detail chart
+    -- has a price series on open; print shows the same row
+    selected = case cuCommodity cursor of
+      Just i -> max 0 (min (length allRows - 1) i)
+      Nothing -> fromMaybe 0 (findIndex (not . crIsBase) allRows)
 
     detail c =
       let ser = series c

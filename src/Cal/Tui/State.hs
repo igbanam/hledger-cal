@@ -238,8 +238,8 @@ move dx dy us = case sFace s of
   FaceCommodities ->
     let m = commoditiesModel (usEnv us) (usCursor us)
         n = length (cmCurrencies m) + length (cmSecurities m)
-        cur = cuCommodity (usCursor us)
-    in us { usCursor = (usCursor us) { cuCommodity = max 0 (min (n - 1) (cur + dy)) } }
+        cur = cmSelected m
+    in us { usCursor = (usCursor us) { cuCommodity = Just (max 0 (min (n - 1) (cur + dy))) } }
   where
     s = settingsOf us
     focus = sFocus s
@@ -257,7 +257,7 @@ enter now us = case sFace s of
   FaceCommodities ->
     let m = commoditiesModel env (usCursor us)
         rows = cmCurrencies m ++ cmSecurities m
-    in case drop (cuCommodity (usCursor us)) rows of
+    in case drop (cmSelected m) rows of
          (r : _)
            | ok m (crCommodity r) -> withSettings (\st -> st { sValuation = ValuedIn (crCommodity r) }) us
            | otherwise -> message now ("no price for " <> codeOf (crCommodity r)) us

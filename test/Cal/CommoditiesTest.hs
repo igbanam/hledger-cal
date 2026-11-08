@@ -51,7 +51,7 @@ unit_spark = do c <- cm; fmap (take 3 . crSpark) (row "MTNN" c) @?= Just [Nothin
 
 unit_vooSplit :: Assertion
 unit_vooSplit = do
-  c' <- (`commoditiesModel` Cursor 0 6) <$> envFor ["--commodities", "-p", "2026-10"]
+  c' <- (`commoditiesModel` Cursor 0 (Just 6)) <$> envFor ["--commodities", "-p", "2026-10"]
   fmap (round . (* 1000)) (cmDetail c' >>= cdPct) @?= Just (222 :: Int)
 
 unit_unpriced :: Assertion
@@ -68,3 +68,13 @@ unit_deltaStale :: Assertion
 unit_deltaStale = do
   c <- cm
   (fmap crDeltaPct (row "Dh" c), fmap (isJust . crDeltaPct) (row "\8364" c)) @?= (Just Nothing, Just True)
+
+-- An unmoved cursor selects the first non-base row (print shows its chart too).
+unit_initialSelection :: Assertion
+unit_initialSelection = do
+  c <- cm
+  (cmSelected c, fmap cdCommodity (cmDetail c)) @?= (1, Just "$")
+  n <- (`commoditiesModel` defaultCursor) <$> envFor ["--commodities", "-p", "2026-10", "--native"]
+  cmSelected n @?= 0
+  e <- (`commoditiesModel` Cursor 0 (Just 0)) <$> envFor ["--commodities", "-p", "2026-10"]
+  fmap cdCommodity (cmDetail e) @?= Just "\8358"

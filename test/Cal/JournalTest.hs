@@ -9,7 +9,7 @@ import Support
 import Test.Tasty.HUnit
 
 unit_settingsTypesCompile :: Assertion
-unit_settingsTypesCompile = defaultCursor @?= Cursor 0 0
+unit_settingsTypesCompile = defaultCursor @?= Cursor 0 Nothing
 
 unit_designLoads :: Assertion
 unit_designLoads = do j <- loadFixture designPath; length (jtxns j) @?= 55

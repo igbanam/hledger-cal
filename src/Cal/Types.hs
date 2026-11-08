@@ -50,7 +50,9 @@ data Terminal = Terminal
   , tNoColorEnv :: !Bool, tTrueColor :: !Bool }
   deriving (Eq, Show)
 
-data Cursor = Cursor { cuWeekTxn :: !Int, cuCommodity :: !Int }
+-- | 'cuCommodity' is the selected Commodities row; Nothing until the user
+-- moves it, which selects the first non-base row (design F6, review M8).
+data Cursor = Cursor { cuWeekTxn :: !Int, cuCommodity :: !(Maybe Int) }
   deriving (Eq, Show)
 
 data Settings = Settings
@@ -67,4 +69,4 @@ data Settings = Settings
   deriving (Eq, Show)
 
 defaultCursor :: Cursor
-defaultCursor = Cursor 0 0
+defaultCursor = Cursor 0 Nothing
