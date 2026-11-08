@@ -7,14 +7,16 @@ $ hledger cal -M -p 2026-10 -f design.journal
 │                    rates at  period end  txn date  today   market · inferred │
 └──────────────────────────────────────────────────────────────────────────────┘
 
-INCOME                    │ EXPENSES                  │ NET
-+2,680,000                │ −2,305,000                │ +375,000
-+180,000 vs Sep           │ +181,000 vs Sep (+8.5%)   │ 14.0% of income kept
-
-FX EFFECT                               │ ACTIVITY
-−12,000                                 │ 11 txns
-period-end vs txn-date rates            │ 5 currencies used
-mostly USD payroll (−12,000)            │
+┌──────────────────────────┬─────────────────────────┬─────────────────────────┐
+│ INCOME                   │ EXPENSES                │ NET                     │
+│ +2,680,000               │ −2,305,000              │ +375,000                │
+│ +180,000 vs Sep          │ +181,000 vs Sep (+8.5%) │ 14.0% of income kept    │
+├──────────────────────────┴────────────┬────────────┴─────────────────────────┤
+│ FX EFFECT                             │ ACTIVITY                             │
+│ −12,000                               │ 11 txns                              │
+│ period-end vs txn-date rates          │ 5 currencies used                    │
+│ mostly USD payroll (−12,000)          │                                      │
+└───────────────────────────────────────┴──────────────────────────────────────┘
 
 Mon       │Tue       │Wed       │Thu       │Fri       │Sat       │Sun       │
 ──────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┤

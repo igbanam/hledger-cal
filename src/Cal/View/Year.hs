@@ -11,7 +11,7 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Cal.Currency (symbolOf)
 import Cal.Doc
 import Cal.Format (fmtAbs, fmtDayMon, fmtNative, fmtPct, fmtQty, fmtScale, fmtSigned)
-import Cal.Glyphs (Glyphs (..), hbar)
+import Cal.Glyphs (Glyphs (..))
 import Cal.Model.Shared (ForecastHint (..), MonthRow (..))
 import Cal.Model.Year
 import Cal.Theme (Role (..))
@@ -143,7 +143,7 @@ monthRowBlocks ctx w showSyms0 bwFor cursor sizing rows = [ (isCursorRow r, rowB
       | otherwise = padSeg symW (Seg dim (truncEnd g (symW - 1) (T.unwords [ maybe c id (symbolOf c) | c <- mrCommodities r ])))
     barSegs role frac = case frac of
       Nothing -> [spaces bw]
-      Just x -> let b = hbar g bw x in [Seg (st role) b, spaces (bw - textW b)]
+      Just x -> thinBar ctx role bw x
     fig :: Int -> Style -> Text -> Seg
     fig fw sty t = let t' = truncEnd g fw t in Seg sty (T.replicate (fw - textW t') " " <> t')
     row1 r = line $

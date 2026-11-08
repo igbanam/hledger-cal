@@ -5,10 +5,12 @@ $ hledger cal -W -p 2026-12-28 -f design.journal
 │ valued in  ₦ NGN  $ USD  Dh AED •  € EUR  ₹ INR  KD KWD  native   NGN = default · D directive     rates at  period end  txn date  today  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
-INCOME                     │ EXPENSES                   │ NET                        │ FX EFFECT                 │ ACTIVITY
-0                          │ 0                          │ 0                          │ 0                         │ 0 txns
-none this week             │                            │ — of income kept           │ period-end vs txn-date    │ 0 of 7 days
-                           │                            │                            │ rates                     │ 0 currencies
+┌───────────────────────────┬───────────────────────────┬───────────────────────────┬───────────────────────────┬──────────────────────────┐
+│ INCOME                    │ EXPENSES                  │ NET                       │ FX EFFECT                 │ ACTIVITY                 │
+│ 0                         │ 0                         │ 0                         │ 0                         │ 0 txns                   │
+│ none this week            │                           │ — of income kept          │ period-end vs txn-date    │ 0 of 7 days              │
+│                           │                           │                           │ rates                     │ 0 currencies             │
+└───────────────────────────┴───────────────────────────┴───────────────────────────┴───────────────────────────┴──────────────────────────┘
 
 Mon 28     0  ·
 Tue 29     0  ·

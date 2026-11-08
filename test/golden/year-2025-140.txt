@@ -5,10 +5,12 @@ $ hledger cal -Y -p 2025 -f design.journal
 │ valued in  ₦ NGN  $ USD  Dh AED  € EUR  ₹ INR  KD KWD  native   NGN = default · D directive       rates at  period end  txn date  today  │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
-INCOME                     │ EXPENSES                   │ NET                        │ FX EFFECT                 │ MONTHS
-0                          │ 0                          │ 0                          │ 0                         │ 12 closed
-avg 0 / month              │ avg 0 / full month         │ — of income kept           │ period-end vs txn-date    │ none overspent
-                           │                            │                            │ rates                     │
+┌───────────────────────────┬───────────────────────────┬───────────────────────────┬───────────────────────────┬──────────────────────────┐
+│ INCOME                    │ EXPENSES                  │ NET                       │ FX EFFECT                 │ MONTHS                   │
+│ 0                         │ 0                         │ 0                         │ 0                         │ 12 closed                │
+│ avg 0 / month             │ avg 0 / full month        │ — of income kept          │ period-end vs txn-date    │ none overspent           │
+│                           │                           │                           │ rates                     │                          │
+└───────────────────────────┴───────────────────────────┴───────────────────────────┴───────────────────────────┴──────────────────────────┘
 
 Q1  0  — spent
   Jan                      0  0

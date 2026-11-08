@@ -4,11 +4,12 @@ module Cal.View.Chrome
   ( topChrome
   , card, sub, incomeCard, expensesCard, netCard, fxCard, activityCard
   , cardRow, mixBlock, footerBlock
+  , colourOn, barCells, thinBar, trackSegs, mixBar, mixLegend, pairedBar
   , dim, plain, spaces, segsW, signStyle, acctSegs
   , colW, acctNeed, rowValue
   ) where
 
-import Data.List (intersperse)
+import Data.List (groupBy, intersperse)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -224,41 +225,118 @@ activityCard ctx w k = card ctx w "ACTIVITY" (Seg (bold plain) (count n "txn" "t
     n = aTxns a
     count i one many = T.pack (show i) <> " " <> (if i == 1 then one else many)
 
--- | Cards side by side, split evenly over the width with ruled separators.
--- At 'Tier80' they wrap onto two rows.
+-- | Cards side by side in one bordered strip, with ruled dividers and one
+-- cell of padding inside every card. At 'Tier80' they wrap onto two rows
+-- of the same strip.
 cardRow :: RenderCtx -> [Int -> Block] -> Block
 cardRow _ [] = emptyB
-cardRow ctx fs = vcat (intersperse blank (map row rows))
+cardRow ctx fs = Block w (ruleLine (bxTL bx) (bxTR bx) [] (concatMap cutsOf (take 1 built))
+  : concat (zipWith between built (map Just (drop 1 built) ++ [Nothing])))
   where
     w = rcWidth ctx
+    bx = gBox (rcGlyphs ctx)
+    rs = st RRule
     n = length fs
     rows
       | rcTier ctx == Tier80 = let (a, b) = splitAt ((n + 1) `div` 2) fs in filter (not . null) [a, b]
       | otherwise = [fs]
+    built = map row rows
+    -- the columns of the dividers inside a row
+    cutsOf (ws, _) = [ 3 + sum (take (i + 1) ws) + 3 * i | i <- [0 .. length ws - 2] ]
+    between r next = bLines (snd r) ++
+      [ case next of
+          Just r' -> ruleLine (bxLT bx) (bxRT bx) (cutsOf r) (cutsOf r')
+          Nothing -> ruleLine (bxBL bx) (bxBR bx) (cutsOf r) [] ]
+    ruleLine l r up down = Line [Seg rs (T.pack (l : [ mid c | c <- [1 .. w - 2] ] ++ [r]))]
+      where
+        mid c = case (c `elem` up, c `elem` down) of
+          (True, True) -> bxX bx
+          (True, False) -> bxBT bx
+          (False, True) -> bxTT bx
+          _ -> bxH bx
     row cs =
       let k = length cs
-          (q, r) = (w - 3 * (k - 1)) `divMod` k
+          (q, r) = (w - 4 - 3 * (k - 1)) `divMod` k
           ws = [q + (if i < r then 1 else 0) | i <- [0 .. k - 1]]
           blocks = zipWith (\c cw -> padTo cw (c cw)) cs ws
           h = maximum (map (length . bLines) blocks)
-          sep = Block 3 (replicate h (Line [Seg (st RRule) (" " <> T.singleton (bxV (gBox (rcGlyphs ctx))) <> " ")]))
-      in hcat 0 (intersperse sep blocks)
+          vr = T.singleton (bxV bx)
+          edge t = Block (textW t) (replicate h (Line [Seg rs t]))
+          sep = edge (" " <> vr <> " ")
+      in (ws, hcat 0 ([edge (vr <> " ")] ++ intersperse sep blocks ++ [edge (" " <> vr)]))
 
--- | A mix bar @w@ cells wide, segments tinted by rank, and its legend.
-mixBlock :: RenderCtx -> Kind -> Int -> Mix -> Block
-mixBlock ctx kind w (Mix xs) = vcat [bar, linesB (flow w [Seg dim (gSep g)] legend)]
+-- * Thin bars (spec §10.2, design S2)
+
+-- | Is there colour? Without it, bars switch to glyphs that tell their parts apart.
+colourOn :: RenderCtx -> Bool
+colourOn ctx = sColor (rcSettings ctx) /= ColorNone
+
+-- | Cells of a @w@-cell bar filled to fraction @x@ (clamped 0..1); a
+-- non-zero fraction fills at least one cell.
+barCells :: Int -> Double -> Int
+barCells w x
+  | x <= 0 || w <= 0 = 0
+  | otherwise = max 1 (min w (round (min 1 x * fromIntegral w)))
+
+-- | @k@ cells of bar track: dim @━@ in colour, @─@ without (ASCII: @-@).
+trackSegs :: RenderCtx -> Int -> [Seg]
+trackSegs ctx k = [ Seg (st RRule) (T.replicate k (T.singleton ch)) | k > 0 ]
+  where
+    g = rcGlyphs ctx
+    ch = if colourOn ctx then gBarTrack g else gBarTrackPlain g
+
+-- | A one-row bar exactly @w@ cells wide: fraction @x@ of it in @━@ (ASCII
+-- @=@) in the role colour, the rest the track.
+thinBar :: RenderCtx -> Role -> Int -> Double -> [Seg]
+thinBar ctx role w x =
+  [ Seg (st role) (T.replicate k (T.singleton (gBarThin (rcGlyphs ctx)))) | k > 0 ] ++ trackSegs ctx (max 0 w - k)
+  where k = barCells w x
+
+-- | A mix bar exactly @w@ cells wide: one segment per commodity, tinted by
+-- rank (100/60/40/25 %); without colour each rank has its own glyph.
+mixBar :: RenderCtx -> Kind -> Int -> Mix -> [Seg]
+mixBar ctx kind w (Mix xs) = segs ++ trackSegs ctx (w - sum widths)
   where
     g = rcGlyphs ctx
     role = if kind == KIncome then RInc else RExp
     tints = [100, 60, 40, 25] ++ repeat 25
-    rankCh i = case drop i (gMixRank g) of
-      (c : _) -> c
-      [] -> last (gFull g : gMixRank g)
+    rankCh i
+      | colourOn ctx = gBarThin g
+      | otherwise = case drop i (gMixRank g) of
+          (c : _) -> c
+          [] -> last (gBarThin g : gMixRank g)
     bounds = [min w (round (c * fromIntegral w)) | c <- scanl (+) 0 (map snd xs)] :: [Int]
     widths = zipWith (-) (drop 1 bounds) bounds
-    bar = line [ Seg (tinted t (st role)) (T.replicate cells (T.singleton (rankCh i)))
-               | (i, t, cells) <- zip3 [0 :: Int ..] tints widths, cells > 0 ]
-    legend = [ [Seg dim (fromMaybe c (symbolOf c) <> " " <> fmtPct (rcFmt ctx) sh)] | (c, sh) <- xs ]
+    segs = [ Seg (tinted t (st role)) (T.replicate cells (T.singleton (rankCh i)))
+           | (i, t, cells) <- zip3 [0 :: Int ..] tints widths, cells > 0 ]
+
+-- | The legend items of a mix: @symbol share@ per commodity, dim.
+mixLegend :: RenderCtx -> Mix -> [[Seg]]
+mixLegend ctx (Mix xs) = [ [Seg dim (fromMaybe c (symbolOf c) <> " " <> fmtPct (rcFmt ctx) sh)] | (c, sh) <- xs ]
+
+-- | A mix bar @w@ cells wide with its legend flowed beneath it.
+mixBlock :: RenderCtx -> Kind -> Int -> Mix -> Block
+mixBlock ctx kind w m = vcat [line (mixBar ctx kind w m), linesB (flow w [Seg dim (gSep (rcGlyphs ctx))] (mixLegend ctx m))]
+
+-- | An in bar over an out bar, @w@ cells wide. In UTF-8 with colour this is
+-- one row of @▀@: the top half (fg) is income, the bottom half (bg) is
+-- expense, and a half that doesn't extend shows the track. In ASCII or
+-- without colour it is two 'thinBar' rows. 'Nothing' (native mode) gives
+-- blank rows.
+pairedBar :: RenderCtx -> Int -> Maybe Double -> Maybe Double -> Block
+pairedBar ctx w inF outF = case gBarPair (rcGlyphs ctx) of
+  Just ch | colourOn ctx -> line (cells ch)
+  _ -> vcat [line (one RInc inF), line (one RExp outF)]
+  where
+    one role = maybe [spaces w] (thinBar ctx role w)
+    ki = maybe 0 (barCells w) inF
+    ko = maybe 0 (barCells w) outF
+    half on role = if on then role else RRule
+    styleAt i = onBg (half (i < ko) RExp) 100 (st (half (i < ki) RInc))
+    cells ch
+      | inF == Nothing && outF == Nothing = [spaces w]
+      | otherwise = [ Seg sty (T.replicate (length grp) (T.singleton ch))
+                    | grp@(sty : _) <- groupBy (==) (map styleAt [0 .. w - 1]) ]
 
 -- | Key hints on the left (replaced by the message, in the warning colour,
 -- when there is one) and the legend on the right.

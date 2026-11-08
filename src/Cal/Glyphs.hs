@@ -22,7 +22,11 @@ data Glyphs = Glyphs
   , gLeft, gRight, gOverspent, gStale, gOpen, gSep, gMinus, gLegendBar
   , gCursorMark, gArrow, gTimes, gDash, gApprox :: !Text
   , gKeyArrows, gKeyUpDown, gKeyLeftRight, gKeyEnter, gDelta :: !Text  -- ^ key hints, Δ
-  , gMixRank :: ![Char], gBox :: !BoxChars }
+  , gMixRank :: ![Char]  -- ^ mix-bar segments by rank, where there is no colour
+  , gBarThin, gBarTrack, gBarTrackPlain :: !Char
+    -- ^ thin bar, its track in colour, its track without colour
+  , gBarPair :: !(Maybe Char)  -- ^ one cell holding two stacked bars (fg over bg)
+  , gBox :: !BoxChars }
   deriving (Eq, Show)
 
 glyphsFor :: GlyphSet -> Glyphs
@@ -33,7 +37,8 @@ glyphsFor GlyphsUtf8 = Glyphs
   , gSep = " · ", gMinus = "−", gLegendBar = "━", gCursorMark = "▢"
   , gArrow = "→", gTimes = "×", gDash = "—", gApprox = "≈"
   , gKeyArrows = "←↑↓→", gKeyUpDown = "↑↓", gKeyLeftRight = "←→", gKeyEnter = "⏎", gDelta = "Δ"
-  , gMixRank = "████"
+  , gMixRank = "━═┅┄"
+  , gBarThin = '━', gBarTrack = '━', gBarTrackPlain = '─', gBarPair = Just '▀'
   , gBox = BoxChars '─' '│' '┌' '┐' '└' '┘' '├' '┤' '┬' '┴' '┼' }
 glyphsFor GlyphsAscii = Glyphs
   { gFull = '#', gEighths = [], gSpark = "_.-~^", gSparkMissing = '.'
@@ -43,6 +48,7 @@ glyphsFor GlyphsAscii = Glyphs
   , gArrow = "->", gTimes = "x", gDash = "-", gApprox = "~"
   , gKeyArrows = "arrows", gKeyUpDown = "up/down", gKeyLeftRight = "left/right", gKeyEnter = "enter", gDelta = "delta"
   , gMixRank = "#=-."
+  , gBarThin = '=', gBarTrack = '-', gBarTrackPlain = '-', gBarPair = Nothing
   , gBox = BoxChars '-' '|' '+' '+' '+' '+' '+' '+' '+' '+' '+' }
 
 -- | Horizontal bar of @w@ cells filled to fraction @f@ (clamped 0..1); no padding.

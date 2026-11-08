@@ -6,12 +6,14 @@ $ hledger cal -W -p 2026-10-26 -f design.journal
 │                                                                     rates at  period end  txn date  today   inferred │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
-INCOME                 │ EXPENSES               │ NET                    │ FX EFFECT             │ ACTIVITY
-0                      │ −1,930,500             │ −1,930,500             │ −12,000               │ 3 txns
-none this week         │ 96% of it is payroll   │ — of income kept       │ period-end vs         │ 3 of 7 days
-                       │ ██████████████████████ │                        │ txn-date rates        │ 2 currencies
-                       │ $ 96.3% · ₦ 3.7%       │                        │ mostly USD payroll    │
-                       │                        │                        │ (−12,000)             │
+┌───────────────────────┬───────────────────────┬───────────────────────┬───────────────────────┬──────────────────────┐
+│ INCOME                │ EXPENSES              │ NET                   │ FX EFFECT             │ ACTIVITY             │
+│ 0                     │ −1,930,500            │ −1,930,500            │ −12,000               │ 3 txns               │
+│ none this week        │ 96% of it is payroll  │ — of income kept      │ period-end vs         │ 3 of 7 days          │
+│                       │ ━━━━━━━━━━━━━━━━━━━━═ │                       │ txn-date rates        │ 2 currencies         │
+│                       │ $ 96.3% · ₦ 3.7%      │                       │ mostly USD payroll    │                      │
+│                       │                       │                       │ (−12,000)             │                      │
+└───────────────────────┴───────────────────────┴───────────────────────┴───────────────────────┴──────────────────────┘
 
 Mon 26              0  ·
 Tue 27        −30,500  ▌

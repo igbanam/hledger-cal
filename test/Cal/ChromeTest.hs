@@ -10,7 +10,7 @@ import Test.Tasty.Golden (goldenVsString)
 import Test.Tasty.HUnit
 
 import Cal.Doc
-import Cal.Model.Common (Env (..), kpisFor)
+import Cal.Model.Common (Env (..), Mix (..), kpisFor)
 import Cal.Model.Shared (currencyBar)
 import Cal.Period (intervalSpan)
 import Cal.Theme (Role (..))
@@ -75,3 +75,70 @@ unit_footerMessage = do
       t = plainText (footerBlock ctx [("q", "quit")] (str (st RDim) "legend"))
   assertBool (show t) ("no price for X" `T.isInfixOf` t && not ("quit" `T.isInfixOf` t))
   assertBool (show t) ("legend" `T.isSuffixOf` t)
+
+ctxWith :: [String] -> Int -> IO RenderCtx
+ctxWith extra w = do
+  env <- envFor (["-M", "-p", "2026-10"] ++ extra)
+  pure (fromJust (mkRenderCtx env w False))
+
+segText :: [Seg] -> Text
+segText ss = T.concat [ t | Seg _ t <- ss ]
+
+-- | The KPI strip is one bordered box: top and bottom borders, sides, and
+-- a divider between cards, joined to the borders (design S1).
+unit_kpiStripBordered :: Assertion
+unit_kpiStripBordered = do
+  b <- monthChrome [] 140
+  -- the strip follows the currency bar's box (its first 6 lines)
+  (top, strip) <- case dropWhile (not . ("┌" `T.isPrefixOf`)) (drop 6 (T.lines (plainText b))) of
+    t : rest -> pure (t, takeWhile (not . T.null) rest)
+    [] -> assertFailure "no strip"
+  T.count "┬" top @?= 4
+  assertBool (show strip) (all (\l -> "│ " `T.isPrefixOf` l && " │" `T.isSuffixOf` l) (init strip))
+  assertBool (show strip) ("└" `T.isPrefixOf` last strip && T.count "┴" (last strip) == 4)
+  -- at 80 columns the cards wrap onto two rows of the same box
+  b80 <- monthChrome [] 80
+  let mids = filter ("├" `T.isPrefixOf`) (T.lines (plainText b80))
+  case mids of
+    [m] -> assertBool (show m) ("┤" `T.isSuffixOf` m && T.any (`elem` ("┼┴┬" :: String)) m)
+    _ -> assertFailure ("one middle rule expected: " ++ show mids)
+
+-- | Thin bars: role glyphs over the track, exactly the width asked for.
+unit_thinBar :: Assertion
+unit_thinBar = do
+  c <- ctxWith ["--color=always"] 140
+  n <- ctxWith ["--color=never"] 140
+  a <- ctxWith ["--ascii"] 140
+  let bar x = thinBar x RInc 10 0.42
+  segText (bar c) @?= "━━━━━━━━━━"
+  [ (stRole s, t) | Seg s t <- bar c ] @?= [(RInc, "━━━━"), (RRule, "━━━━━━")]
+  segText (bar n) @?= "━━━━──────"
+  segText (bar a) @?= "====------"
+  segText (thinBar c RExp 10 0.001) @?= "━━━━━━━━━━"
+  [ t | Seg s t <- thinBar c RExp 10 0.001, stRole s == RExp ] @?= ["━"]
+  segText (thinBar c RExp 10 0) @?= "━━━━━━━━━━"
+  [ t | Seg s t <- thinBar c RExp 10 0, stRole s == RExp ] @?= []
+
+-- | Paired bars: one row of ▀ (fg income, bg expense, track where a side
+-- stops); two thin rows in ASCII or without colour.
+unit_pairedBar :: Assertion
+unit_pairedBar = do
+  c <- ctxWith ["--color=always"] 140
+  n <- ctxWith ["--color=never"] 140
+  a <- ctxWith ["--ascii"] 140
+  let p x = pairedBar x 6 (Just 0.5) (Just (2 / 6))
+      cells = [ (stRole s, fmap fst (stBg s)) | Line ss <- bLines (p c), Seg s t <- ss, _ <- T.unpack t ]
+  plainText (p c) @?= "▀▀▀▀▀▀"
+  cells @?= replicate 2 (RInc, Just RExp) ++ [(RInc, Just RRule)] ++ replicate 3 (RRule, Just RRule)
+  plainText (p n) @?= "━━━───\n━━────"
+  plainText (p a) @?= "===---\n==----"
+  plainText (pairedBar c 4 Nothing Nothing) @?= ""
+
+-- | Mix bars fill their width; in colour every segment is ━ in a tint.
+unit_mixBar :: Assertion
+unit_mixBar = do
+  c <- ctxWith ["--color=always"] 140
+  n <- ctxWith ["--color=never"] 140
+  let mx = Mix [("NGN", 0.8), ("USD", 0.2)]
+  [ (stTint s, t) | Seg s t <- mixBar c KExpense 10 mx ] @?= [(100, "━━━━━━━━"), (60, "━━")]
+  segText (mixBar n KExpense 10 mx) @?= "━━━━━━━━══"
