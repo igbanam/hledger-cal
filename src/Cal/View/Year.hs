@@ -116,9 +116,10 @@ yearDoc ctx m = ViewDoc
 
 -- | The ≥ 140 body (design F2): per quarter, a row of a summary box and
 -- three month cards, all as tall as the tallest; and the line of the cursor
--- card's name. The cursor card's border is the cursor (S4); otherwise an
--- overspent month's border takes the expense tint, the open month's the
--- accent, and a future month's is dashed.
+-- card's name. The cursor card's border is the cursor (S4), the only
+-- purple; otherwise an overspent month's border takes the expense tint. The
+-- open month is marked by its "to 6th" chip and the "…" after its net, not
+-- its border; a future month's border is dashed.
 yearGrid :: RenderCtx -> YearModel -> Maybe Day -> (Block, Maybe Int)
 yearGrid ctx m cursor = (vcat rowsB, cursorRow)
   where
@@ -161,7 +162,6 @@ yearGrid ctx m cursor = (vcat rowsB, cursorRow)
     borderStyle r
       | isCursor r = cursorBorder
       | mrOverspent r = st RExp
-      | mrStatus r == Open = st RCursor
       | otherwise = st RRule
     ascii = sGlyphSet (rcSettings ctx) == GlyphsAscii
     dashed = (gBox g) { bxH = if ascii then '-' else '┄', bxV = if ascii then ':' else '┆' }

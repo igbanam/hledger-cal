@@ -121,11 +121,17 @@ unit_gridLayout = do
   assertBool "Dec no postings" (any ("no postings yet" `T.isInfixOf`) ls)
   -- the chip is reverse video
   assertBool "chip inverse" (any (\(ch, s) -> ch == 't' && stInverse s) (concat (cellStyles b)))
-  -- Aug's border is the expense tint, Nov's the accent, Dec's dashed
+  -- Aug's border is the expense tint, Dec's dashed
   let ((a0, ac0), (a1, ac1)) = cardRect "Aug" b
       augBorder = [ x | x@(r, c, _) <- roleCells RExp "─│┌┐└┘" b, r >= a0, r <= a1, c >= ac0, c <= ac1 ]
   length augBorder @?= 2 * (ac1 - ac0 + 1) + 2 * (a1 - a0 - 1)
-  assertBool "Nov accent border" (length (roleCells RCursor "─│┌┐└┘" b) > 10)
+  -- purple means the cursor only: the open month (Nov) has a plain border
+  roleCells RCursor "─│┌┐└┘" b @?= []
+  let ((n0, nc0), (n1, nc1)) = cardRect "Nov" b
+      onEdge r c = (r == n0 || r == n1) && c >= nc0 && c <= nc1 || (c == nc0 || c == nc1) && r >= n0 && r <= n1
+      -- perimeter cells only: without colour the bar tracks inside are rule-role "─" too
+      novBorder = [ x | x@(r, c, _) <- roleCells RRule "─│┌┐└┘" b, onEdge r c ]
+  length novBorder @?= 2 * (nc1 - nc0 + 1) + 2 * (n1 - n0 - 1)
   assertBool "Dec dashed border" (length (roleCells RRule "┄┆" b) > 10)
 
 unit_gridFutureAscii :: Assertion
@@ -148,7 +154,7 @@ unit_cursorBorder = do
     length cs @?= 2 * (c1 - c0 + 1) + 2 * (r1 - r0 - 1)
     -- the only reverse video is the open month's "to 6th" chip
     assertBool "no inverse label" ([ ch | (ch, s) <- concat (cellStyles b), stInverse s ] `elem` ["", " to 6th "])
-    assertBool "no accent left on the cursor card" (null [ x | x@(r, c, _) <- roleCells RCursor "─│┌┐└┘" b, r >= r0, r <= r1, c >= c0, c <= c1 ])
+    assertBool "no accent border anywhere" (null (roleCells RCursor "─│┌┐└┘" b))
   b <- yearBody ["-Y"] 140 False
   cursorCells b @?= []
 
