@@ -1,8 +1,13 @@
 cabal-version: 3.0
 name:          hledger-cal
 version:       0.1.0.0
-synopsis:      Calendar view of income and expenses for hledger
+synopsis:      Calendar view of income and expenses for HLedger
 build-type:    Simple
+
+author:  Igbanam Ogbuluijah <xigbanam@gmail.com>
+maintainer: Igbanam Ogbuluijah <xigbanam@gmail.com>
+license: BSD-3-Clause
+category: Finance
 
 common shared
   default-language: GHC2021
