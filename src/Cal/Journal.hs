@@ -8,6 +8,7 @@ module Cal.Journal
   , firstSeenCommodity
   ) where
 
+import Cal.Platform (utf8Journals)
 import Cal.Types (Kind (..))
 import Control.Exception (SomeAsyncException, SomeException, displayException, fromException, throwIO, try)
 import Data.Maybe (listToMaybe)
@@ -25,6 +26,7 @@ import Hledger
 -- afterwards @tindex <$> ptransaction p@ matches 'jtxns'.
 loadJournal :: InputOpts -> [FilePath] -> IO (Either String Journal)
 loadJournal iopts files = do
+  utf8Journals
   r <- try (runExceptT (readJournalFiles iopts files))
   case r of
     Left e | Just (_ :: SomeAsyncException) <- fromException e -> throwIO e

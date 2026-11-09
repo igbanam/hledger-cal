@@ -3,6 +3,7 @@ module Main (main) where
 import Cal.Cli (loadInputOpts, mkSettings, parseCli)
 import Cal.Journal (loadJournal)
 import Cal.Model.Common (mkEnv)
+import Cal.Platform (utf8Console)
 import Cal.Print (renderPrint)
 import Cal.Tui.App (runTui)
 import Cal.Types (Output (..), Settings (..), Terminal (..))
@@ -21,6 +22,7 @@ import Text.Read (readMaybe)
 
 main :: IO ()
 main = do
+  utf8Console
   opts <- getArgs >>= parseCli
   -- today, or hledger's --today
   let today = _rsDay (reportspec_ opts)

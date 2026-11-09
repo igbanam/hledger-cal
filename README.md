@@ -16,12 +16,30 @@ built on hledger-lib 1.52 and brick.
 
 ## Install
 
+Homebrew (macOS, Linux):
+
+```sh
+brew install igbanam/servings/hledger-cal
+```
+
+Scoop (Windows):
+
+```sh
+scoop bucket add igbanam https://github.com/igbanam/scoop-bucket
+scoop install igbanam/hledger-cal
+```
+
+Binaries for macOS, Linux and Windows are attached to each
+[GitHub release](https://github.com/igbanam/hledger-cal/releases). Put
+`hledger-cal` anywhere on your `PATH`.
+
+From source, with GHC 9.10:
+
 ```sh
 cabal install --installdir ~/.local/bin --install-method=copy
 ```
 
-Make sure `~/.local/bin` is on your `PATH`, then check that hledger finds the
-add-on:
+Then check that hledger finds the add-on:
 
 ```sh
 hledger cal --help
@@ -119,3 +137,7 @@ cabal bench startup --benchmark-options='+RTS -N -RTS'
 
 Generates a 10,000-transaction journal and times load + settings + a Month
 render at 140 columns; it exits non-zero if that takes 1.0 s or more.
+
+## License
+
+GPL-3.0-or-later. See [LICENSE](LICENSE).
