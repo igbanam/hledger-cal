@@ -131,3 +131,11 @@ unit_currencyChoicesIncluded = do
   currencyChoices single @?= ["₦", "DKK", "SEK", "CAD", "ISK"]
   several <- envFor ["-M", "-p", "2026-10", "-f", "test/fixtures/multi-a.journal", "-f", mainJ]
   currencyChoices several @?= ["₦", "DKK", "SEK", "CAD", "ISK"]
+
+-- | Lowercase currency codes posted only in included files are choices too;
+-- the first-seen currency stays the default, the rest follow posting date,
+-- and the declared ticker (btc) stays out.
+unit_currencyChoicesLowercaseIncluded :: Assertion
+unit_currencyChoicesLowercaseIncluded = do
+  env <- envFor ["-M", "-p", "2026-11", "-f", "test/fixtures/lowercase-main.journal"]
+  currencyChoices env @?= ["ngn", "eur", "aed"]

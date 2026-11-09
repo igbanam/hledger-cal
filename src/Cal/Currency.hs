@@ -12,6 +12,7 @@ import Cal.Currency.Table (iso4217)
 import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
 import Data.Text (Text)
+import Data.Text qualified as T
 import Hledger (CommoditySymbol)
 
 -- | Currency symbols and the ISO 4217 code each stands for.
@@ -25,11 +26,15 @@ symbolCodes =
   ]
 
 isCurrency :: CommoditySymbol -> Bool
-isCurrency c = c `Set.member` iso4217 || c `elem` map fst symbolCodes
+isCurrency c = isoCode c || c `elem` map fst symbolCodes
+
+-- | ISO codes match in any case: a journal may write ngn or eur.
+isoCode :: CommoditySymbol -> Bool
+isoCode c = T.toUpper c `Set.member` iso4217
 
 currencyCode :: CommoditySymbol -> Maybe Text
 currencyCode c
-  | c `Set.member` iso4217 = Just c
+  | isoCode c = Just (T.toUpper c)
   | otherwise = lookup c symbolCodes
 
 codeOf :: CommoditySymbol -> Text

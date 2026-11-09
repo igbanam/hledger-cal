@@ -14,3 +14,11 @@ unit_chips = map chipLabel ["₦", "$", "USD", "MTNN"] @?= ["₦ NGN", "$ USD", 
 
 unit_chipNoDup :: Assertion
 unit_chipNoDup = chipLabel "CHF" @?= "CHF"
+
+-- | ISO codes match regardless of case, so a journal written in lowercase
+-- (ngn, eur) gets currencies, not securities; tickers stay securities.
+unit_lowercaseCodes :: Assertion
+unit_lowercaseCodes = do
+  map isCurrency ["eur", "aed", "Usd", "btc", "voo"] @?= [True, True, True, False, False]
+  map codeOf ["eur", "aed"] @?= ["EUR", "AED"]
+  chipLabel "eur" @?= "€ EUR"

@@ -1,0 +1,11 @@
+; Lowercase currency codes spread over included files: ngn is declared
+; here, eur and aed are only posted (eur only in the second include).
+commodity 1,000.00 ngn
+commodity 1,000.00 btc
+
+include lowercase-first.journal
+include lowercase-second.journal
+
+2026-11-01 * Opening balances
+  assets:bank:aed  57 aed
+  equity:opening-balances
