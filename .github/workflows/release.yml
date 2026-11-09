@@ -1,0 +1,97 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15,         target: aarch64-apple-darwin,      ext: tar.gz }
+          - { os: macos-15-intel,   target: x86_64-apple-darwin,       ext: tar.gz }
+          - { os: ubuntu-24.04,     target: x86_64-unknown-linux-gnu,  ext: tar.gz }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, ext: tar.gz }
+          - { os: windows-2022,     target: x86_64-pc-windows,         ext: zip }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: setup
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: "9.10.2"
+          cabal-version: "3.16"
+
+      - name: Use the installed GHC
+        run: echo "GHC=${{ steps.setup.outputs.ghc-exe }}" >> "$GITHUB_ENV"
+
+      - name: Resolve dependencies
+        run: cabal update && cabal build all --dry-run -w "$GHC"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: store-${{ matrix.target }}-${{ hashFiles('dist-newstyle/cache/plan.json') }}
+          restore-keys: store-${{ matrix.target }}-
+
+      - name: Build
+        run: cabal build all -w "$GHC"
+
+      - name: Test
+        run: cabal test -w "$GHC"
+
+      - name: Package
+        run: |
+          version="${GITHUB_REF_NAME}"
+          [[ "$version" == v* ]] || version="v$(grep -m1 '^version:' hledger-cal.cabal | awk '{print $2}')"
+          name="hledger-cal-${version}-${{ matrix.target }}"
+          mkdir -p "stage/$name"
+          exe=hledger-cal
+          [[ "${{ runner.os }}" == Windows ]] && exe=hledger-cal.exe
+          cp "$(cabal list-bin -w "$GHC" exe:hledger-cal)" "stage/$name/$exe"
+          [[ "${{ runner.os }}" == Windows ]] || strip "stage/$name/$exe"
+          cp LICENSE README.md "stage/$name/"
+          cd "stage/$name"
+          if [[ "${{ matrix.ext }}" == zip ]]; then
+            7z a "../../$name.zip" . > /dev/null
+          else
+            tar czf "../../$name.tar.gz" .
+          fi
+          echo "ASSET=$name.${{ matrix.ext }}" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: ${{ env.ASSET }}
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes

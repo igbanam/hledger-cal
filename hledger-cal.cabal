@@ -6,8 +6,24 @@ build-type:    Simple
 
 author:  Igbanam Ogbuluijah <xigbanam@gmail.com>
 maintainer: Igbanam Ogbuluijah <xigbanam@gmail.com>
-license: BSD-3-Clause
+license: GPL-3.0-or-later
+license-file: LICENSE
 category: Finance
+description:
+  An hledger add-on that shows income and expenses as a calendar: year,
+  quarter, month and week views, a commodities view, and a register, each
+  valued in a currency of your choice. Run it as @hledger cal@.
+homepage:    https://github.com/igbanam/hledger-cal
+bug-reports: https://github.com/igbanam/hledger-cal/issues
+tested-with: GHC ==9.10.2
+extra-doc-files: README.md
+extra-source-files:
+  test/fixtures/*.journal
+  test/golden/*.txt
+
+source-repository head
+  type:     git
+  location: https://github.com/igbanam/hledger-cal.git
 
 common shared
   default-language: GHC2021
@@ -51,28 +67,28 @@ library
     Cal.Tui.State
     Cal.Tui.App
   build-depends:
-    base,
-    text,
-    containers,
-    time,
-    Decimal,
-    microlens,
+    base >=4.20 && <4.21,
+    text >=2.1 && <2.2,
+    containers >=0.7 && <0.8,
+    time >=1.12 && <1.15,
+    Decimal >=0.5 && <0.6,
+    microlens >=0.4 && <0.6,
     hledger-lib ==1.52.*,
     hledger ==1.52.*,
     brick >=2.4 && <3,
-    vty >=6.1,
-    vty-crossplatform >=0.4,
-    doclayout,
-    directory,
-    filepath,
-    safe
+    vty >=6.1 && <6.8,
+    vty-crossplatform >=0.4 && <0.6,
+    doclayout >=0.6 && <0.7,
+    directory >=1.3 && <1.4,
+    filepath >=1.4 && <1.6,
+    safe >=0.3 && <0.4
 
 executable hledger-cal
   import: shared
   main-is: Main.hs
   hs-source-dirs: app
   ghc-options: -threaded -rtsopts
-  build-depends: base, hledger-cal, text, time, hledger ==1.52.*, hledger-lib ==1.52.*
+  build-depends: base >=4.20 && <4.21, hledger-cal, text, time, hledger ==1.52.*, hledger-lib ==1.52.*
 
 test-suite spec
   import: shared
@@ -111,7 +127,7 @@ test-suite spec
   build-tool-depends: tasty-discover:tasty-discover, hledger-cal:hledger-cal
   build-depends:
     tasty, tasty-hunit, tasty-golden, bytestring, process, hledger-cal,
-    base,
+    base >=4.20 && <4.21,
     text,
     containers,
     time,
@@ -133,4 +149,4 @@ benchmark startup
   main-is: Startup.hs
   hs-source-dirs: bench
   ghc-options: -threaded -rtsopts
-  build-depends: base, hledger-cal, text, time, directory, hledger ==1.52.*, hledger-lib ==1.52.*
+  build-depends: base >=4.20 && <4.21, hledger-cal, text, time, directory, hledger ==1.52.*, hledger-lib ==1.52.*
