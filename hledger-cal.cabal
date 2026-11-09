@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name:          hledger-cal
-version:       0.1.0.0
+version:       0.1.0.1
 synopsis:      Calendar view of income and expenses for HLedger
 build-type:    Simple
 
@@ -67,6 +67,8 @@ library
     Cal.Print
     Cal.Tui.State
     Cal.Tui.App
+  other-modules:  Paths_hledger_cal
+  autogen-modules: Paths_hledger_cal
   build-depends:
     base >=4.20 && <4.21,
     text >=2.1 && <2.2,

@@ -69,6 +69,16 @@ unit_mainPrint = do
   golden <- TE.decodeUtf8 <$> BS.readFile "test/golden/month-2026-10-140.txt"
   T.pack out @?= golden
 
+-- | @--version@ prints the cabal file's version and exits, without a journal.
+unit_mainVersion :: Assertion
+unit_mainVersion = do
+  bin <- findBin
+  cabalFile <- T.pack <$> readFile "hledger-cal.cabal"
+  let declared = [ T.strip v | l <- T.lines cabalFile, Just v <- [T.stripPrefix "version:" l] ]
+  (code, out, err) <- readProcessWithExitCode bin ["--version", "-f", "test/fixtures/nope.journal"] ""
+  (code, err) @?= (ExitSuccess, "")
+  map (("hledger-cal " <>) . (<> "\n")) declared @?= [T.pack out]
+
 unit_mainBadJournal :: Assertion
 unit_mainBadJournal = do
   bin <- findBin

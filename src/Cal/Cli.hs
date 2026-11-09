@@ -21,6 +21,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time.Calendar (addDays, addGregorianMonthsClip, addGregorianYearsClip, toGregorian)
 import Data.Time.Calendar.WeekDate (fromWeekDate)
+import Data.Version (showVersion)
 import Hledger.Cli
   ( CliOpts (..), Mode, YNA (..), argsFlag, flagNone, flagReq, getHledgerCliOpts'
   , helpflags, hledgerCommandMode, inputflags, reportflags )
@@ -33,7 +34,9 @@ import Hledger.Data.Valuation (ConversionOp (..), ValuationType (..))
 import Hledger.Query (Query (..), filterQuery, parseQuery, queryDateSpan, queryIsDate, queryIsDateOrDate2)
 import Hledger.Read.InputOptions (InputOpts (..))
 import Hledger.Reports.ReportOptions (ReportOpts (..), ReportSpec (..), queryFromFlags, rawOptsToReportSpec)
+import Paths_hledger_cal (version)
 import Safe (headMay, lastMay)
+import System.Exit (exitSuccess)
 import System.FilePath (takeFileName)
 
 calHelp :: String
@@ -64,8 +67,14 @@ calMode = hledgerCommandMode calHelp
   []
   ([], Just (argsFlag "[QUERY]"))
 
+-- | hledger parses @--version@ but leaves it to each command, so it is
+-- answered here, before any journal is read.
 parseCli :: [String] -> IO CliOpts
-parseCli = getHledgerCliOpts' calMode
+parseCli args = do
+  opts <- getHledgerCliOpts' calMode args
+  if boolopt "version" (rawopts_ opts)
+    then putStrLn ("hledger-cal " ++ showVersion version) >> exitSuccess
+    else pure opts
 
 -- | Resolve parsed options against today, the terminal and the loaded journal.
 -- The report spec is rebuilt from the raw options with the given day so
