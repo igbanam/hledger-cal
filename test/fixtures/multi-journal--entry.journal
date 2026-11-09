@@ -1,0 +1,11 @@
+commodity 1,000.00 ngn
+commodity 1,000.00 btc
+
+include multi-journal--first.journal
+include multi-journal--second.journal
+
+P 2026-11-01 eur 1000 ngn
+
+2026-11-01 * Opening Balances
+  assets:bank:aed  57 aed
+  equity:opening-balances
